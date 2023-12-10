@@ -24,33 +24,23 @@ def parse_stdin(names, null_sep: bool) -> list:
 
 
 def parse_filename(name: str) -> list:
-    file_data = name.split(':', 2)
-    file_data[0] = Path(file_data[0])
+    file_data: list = name.split(':', 2)
+    file = Path(file_data[0])
+    if file.is_dir():
+        return []
+    file_data[0] = file
     try:
         file_data[1] = int(file_data[1])
+    except IndexError:
+        # if no line number is found, append 0 and an empty
+        # string since this is probably data from find.
+        file_data.append(0)
+        file_data.append('')
     except ValueError:
-        return
+        return []
     if not file_data[0].exists():
         raise click.BadParameter(f"Path '{file_data[0]}' does not exist.")
     return file_data
-
-
-def init(files, null):
-    filenames = []
-    for f in files:
-        if f.name == '<stdin>':
-            filenames += parse_stdin(f, null)
-        else:
-            filenames.append([Path(f.name)])
-
-    sys.stdin = open('/dev/tty', 'r')
-
-    if not files:
-        raise click.BadParameter('No files found.')
-
-    pp(filenames)
-    app = Prism(files=filenames)
-    app.run()
 
 
 CONTEXT_SETTINGS = {
@@ -60,7 +50,8 @@ CONTEXT_SETTINGS = {
 @click.argument('files', type=click.File(), nargs=-1)
 @click.option('--null/--no-null', '-n/ ', default=False,
               help='Whether or not the filenames are null terminated or space separated.')
-def prism(files: str, null: bool) -> None:
+@click.option('--debug-data', is_flag=True)
+def prism(files: str, null: bool, debug_data: bool) -> None:
     """prism.
 
     \b
@@ -73,4 +64,20 @@ def prism(files: str, null: bool) -> None:
     python -m prism --help
     """
 
-    init(files, null)
+    filenames = []
+    for f in files:
+        if f.name == '<stdin>':
+            filenames += parse_stdin(f, null)
+        else:
+            filenames.append([Path(f.name)])
+
+    sys.stdin = open('/dev/tty', 'r')
+
+    if not files:
+        raise click.BadParameter('No files found. ')
+
+    if debug_data:
+        pp(filenames)
+    else:
+        app = Prism(files=filenames)
+        app.run()
