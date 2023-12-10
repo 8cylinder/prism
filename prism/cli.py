@@ -15,13 +15,21 @@ def parse_stdin(names, null_sep: bool) -> list:
     split_char = '\x00' if null_sep else '\n'
     names = names.strip(split_char)  # find appends a null byte to the end of the string
     names = names.split(split_char)
-    names = [parse_filename(i) for i in names]
-    return names
+    parsed_names = []
+    for i in names:
+        parsed_name = parse_filename(i)
+        if parsed_name:
+            parsed_names.append(parsed_name)
+    return parsed_names
 
 
 def parse_filename(name: str) -> list:
     file_data = name.split(':', 2)
     file_data[0] = Path(file_data[0])
+    try:
+        file_data[1] = int(file_data[1])
+    except ValueError:
+        return
     if not file_data[0].exists():
         raise click.BadParameter(f"Path '{file_data[0]}' does not exist.")
     return file_data
@@ -37,11 +45,11 @@ def init(files, null):
 
     sys.stdin = open('/dev/tty', 'r')
 
-    # log('xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
-    # log(filenames)
+    if not files:
+        raise click.BadParameter('No files found.')
 
+    pp(filenames)
     app = Prism(files=filenames)
-    # app = Prism()
     app.run()
 
 

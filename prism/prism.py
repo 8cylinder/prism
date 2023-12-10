@@ -26,11 +26,6 @@ class FileListItem(ListItem):
         yield Label(f'{self.file.parent}/', classes='path')
 
 
-class CodeView(ScrollView):
-    def __init__(self) -> None:
-        ...
-
-
 class Prism(App):
     """View files found."""
 
