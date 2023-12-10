@@ -1,0 +1,10 @@
+# docker compose up         # to build
+# docker compose run prism  # to access
+
+services:
+  prism:
+    build: .
+    container_name: prism
+    volumes:
+      - .:/home/sm/prism
+    command: bash

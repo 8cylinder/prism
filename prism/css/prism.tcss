@@ -1,0 +1,83 @@
+Screen {
+  background: $surface-darken-1;
+}
+
+#file-list{
+  dock: left;
+  width: 0%;
+  height: 100%;
+  background: $primary-background-darken-1;
+  /* scrollbar-gutter: stable; */
+  /* overflow: auto; */
+  /* width: auto; */
+  /* height: 100%; */
+}
+
+.file-list-item{
+  padding: 0 1;
+}
+.file-list-item.odd{
+  /* background: $primary-background-darken-1; */
+}
+.file-list-item.even{
+  /* background: $primary-background-darken-2; */
+}
+.file-list-item:focus{
+  background: red;
+}
+.file-list-item:hover{
+  background: $primary-background-lighten-1;
+}
+
+.fname{
+  padding: 0 0;
+  color: white;
+  text-style: bold;
+  /* background: blue; */
+}
+.path{
+  padding: 0 0;
+  color: $secondary;
+  text-style: italic;
+}
+
+.-show-files #file-list {
+  display: block;
+  width: 25%;
+}
+
+/* Prism #file-list{ */
+/*   background: red; */
+/*   border: solid red; */
+/* } */
+
+/* -------------------------------------- */
+
+/*
+#tree-view {
+  display: none;
+  scrollbar-gutter: stable;
+  overflow: auto;
+  width: auto;
+  height: 100%;
+  dock: left;
+}
+
+Prism.-show-tree #tree-view {
+  display: block;
+  max-width: 50%;
+}
+
+
+#code-view {
+  overflow: auto scroll;
+  min-width: 100%;
+}
+#code {
+  width: auto;
+}
+
+ListItem{
+  padding: 2 2;
+}
+*/
