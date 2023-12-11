@@ -32,13 +32,14 @@ Screen {
 .fname{
   padding: 0 0;
   color: white;
-  text-style: bold;
+  /* text-style: bold; */
   /* background: blue; */
 }
 .path{
-  padding: 0 0;
+  padding: 0 1;
   color: $secondary;
   text-style: italic;
+  /* text-align: right; */
 }
 
 .-show-files #file-list {
