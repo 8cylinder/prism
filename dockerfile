@@ -8,27 +8,35 @@ FROM python:3.10-slim
 
 ARG USER=sm
 
-RUN set -eux; \
-    apt update; \
-    apt install --yes sudo pipx joe git; \
-    useradd --create-home $USER --password "$(openssl passwd -1 password)"; \
-    usermod -aG sudo $USER
+RUN apt-get update;
+
+RUN <<EOF
+    set -eux;
+    apt-get install --yes sudo joe git;
+    useradd --create-home $USER --password "$(openssl passwd -1 password)";
+    usermod -aG sudo $USER;
+EOF
 
 USER $USER
 
 WORKDIR /home/$USER/prism
 
-# RUN pip install --no-cache-dir --upgrade -r requirements.txt
+ENV VIRTUAL_ENV_DISABLE_PROMPT=1
 
-RUN set -eux; \
-    PATH=$HOME/.local/bin:$PATH; \
-    echo 'PS1="\n\[\e]0;\u@\h: \w\a\]${debian_chroot:+($debian_chroot)}\[\e[35m\][\u]\[\e[m\]\[\033[00m\] \[\033[01;34m\]\w\[\033[00m\]\n\$ "' >> $HOME/.bashrc; \
-    echo 'PATH=$HOME/.local/bin:$PATH' >> $HOME/.bashrc; \
-    echo 'alias ll="ls -lhAF --color=always"' >> $HOME/.bashrc; \
-    echo 'alias ls="ls -A"' >> $HOME/.bashrc; \
-    pipx install poetry; \
-    pwd; \
-    ls -lAh; \
-    poetry completions bash >> ~/.bash_completion;
+# allows docker to cache python packages
+ENV PIP_NO_CACHE_DIR=1
 
-# poetry install;
+RUN <<EOF
+    set -eux;
+    PATH=$HOME/.local/bin:$PATH;
+    echo "PS1='\n\[\033[01;32m\]\$VIRTUAL_ENV_PROMPT\[\033[00m\] \[\033[01;35m\]\u@\h\[\033[00m\] \[\033[01;34m\]\w\[\033[00m\]\n\$ '" >> $HOME/.bashrc;
+    echo 'PATH=$HOME/.local/bin:$PATH' >> $HOME/.bashrc;
+    echo 'alias ll="ls -lhAF --color=always --group-directories-first"' >> $HOME/.bashrc;
+    echo 'alias ls="ls -AF --color=always --group-directories-first"' >> $HOME/.bashrc;
+EOF
+
+RUN python3 -m pip install --user pipx;
+RUN python3 -m pipx ensurepath;
+RUN python3 -m pipx completions;
+RUN /home/sm/.local/bin/pipx install poetry;
+RUN /home/sm/.local/bin/poetry completions bash >> ~/.bash_completion;

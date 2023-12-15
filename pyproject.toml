@@ -6,7 +6,7 @@ authors = ["sheldon <developer@8cylinder.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "^3.9"
 click = "^8.1.7"
 textual = "^0.41.0"
 textual-dev = "^1.2.1"

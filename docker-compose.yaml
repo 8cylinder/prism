@@ -1,8 +1,11 @@
 # docker compose up         # to build
-# docker compose run prism  # to access
+# docker compose build        # to rebuild
+# docker compose run chopper  # to access
+
 
 services:
   prism:
+    # user: root
     build: .
     container_name: prism
     volumes:
