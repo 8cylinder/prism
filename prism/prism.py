@@ -10,7 +10,7 @@ from rich.style import Style
 
 from textual.scroll_view import ScrollView
 from textual.app import App, ComposeResult, RenderResult
-from textual.containers import Container, VerticalScroll, Horizontal
+from textual.containers import Container, VerticalScroll, Horizontal, ScrollableContainer
 from textual.reactive import var
 # from textual.widgets import DirectoryTree, Footer, Header, Static
 from textual.widget import Widget
@@ -33,9 +33,19 @@ class FileListItem(ListItem):
 
     def compose(self) -> ComposeResult:
         # see https://textual.textualize.io/guide/widgets/#segment-and-style
-        line_number = f' [bright_black]{self.line_num}[/]' if self.line_num else ''
-        yield Label(f'[b]{self.file.name}[/b]{line_number}', classes='fname')
-        yield Label(f'{self.file.parent}/', classes='path', expand=True, shrink=True)
+        # line_number = f' [bright_black]{self.line_num}[/]' if self.line_num else ''
+
+        parent = ''
+        if len(self.file.parts) > 1:
+            parent = f'[b blue]{self.file.parent}/[/]'
+        yield Label(
+            f'{parent}[b bright_white]{self.file.name}[/] [green]{self.line_num}[/]',
+            classes=''
+        )
+
+        # with Container(classes='file-list-item'):
+        #     yield Label(f'[b]{self.file.name}[/b]{line_number}', classes='fname')
+        #     yield Label(f'{self.file.parent}/', classes='path', expand=True, shrink=True)
 
 
 class Prism(App):
