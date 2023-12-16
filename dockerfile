@@ -4,7 +4,7 @@
 # docker run -it --mount type=bind,source="$(pwd)",target=/home/sm/app prism bash
 ## pre-commit install && hatch env create && hatch shell
 
-FROM python:3.10-slim
+FROM python:3.13-slim
 
 ARG USER=sm
 
@@ -12,7 +12,7 @@ RUN apt-get update;
 
 RUN <<EOF
     set -eux;
-    apt-get install --yes sudo joe git;
+    apt-get install --yes sudo joe git ripgrep;
     useradd --create-home $USER --password "$(openssl passwd -1 password)";
     usermod -aG sudo $USER;
 EOF
