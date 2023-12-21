@@ -4,7 +4,7 @@
 # docker run -it --mount type=bind,source="$(pwd)",target=/home/sm/app prism bash
 ## pre-commit install && hatch env create && hatch shell
 
-FROM python:3.13-slim
+FROM python:3.11-slim
 
 ARG USER=sm
 
