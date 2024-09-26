@@ -52,24 +52,44 @@ CONTEXT_SETTINGS = {
               help='Whether or not the filenames are null terminated or space separated.')
 @click.option('--debug-data', is_flag=True)
 def prism(files: str, null: bool, debug_data: bool) -> None:
-    """prism.
+    """View files found with various means, find, rg, grep.
 
     \b
-    rg 'search string' -t py --line-number
-    rg 'search string' --line-number
-    grep 'search string' -Hn *
+    Example usage
+    -------------
 
     \b
+    rg 'search string' | prism -
+    rg 'search string' -t py --line-number | prism -
+    grep 'search string' -Hn * | prism -
+    find -iname "*py" -exec grep -Hn 'search string' {} \; | prism -
+    find -iname "*py" -print0 | xargs --null grep --with-filename --line-number 'search string' | prism -
+    find -path "**prism/*py" -print0 | prism --null -
+
+    \b
+    While dev
+    ---------
+
     textual run prism.__main__ --help
-    python -m prism --help
+    textual run --dev -c python -m prism.__main__ -h
+
+    Run `docker compose build` and `docker compose run prism`.  This
+    will ensure there is an eviroment to run and test prism.
+
+    In docker prism can be run via `python -m prism --help`.
+
+    \b
+    ... | python -m prism --debug-data -
+    ... | textual run --dev prism.__main__ --debug-data -
     """
 
     filenames = []
+    #pp(files)
     for f in files:
         if f.name == '<stdin>':
             filenames += parse_stdin(f, null)
         else:
-            filenames.append([Path(f.name)])
+            filenames.append([Path(f.name), 1, ''])
 
     sys.stdin = open('/dev/tty', 'r')
 

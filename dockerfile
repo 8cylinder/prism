@@ -2,7 +2,7 @@
 # docker build -t prism .
 # docker run -it prism bash
 # docker run -it --mount type=bind,source="$(pwd)",target=/home/sm/app prism bash
-## pre-commit install && hatch env create && hatch shell
+
 
 FROM python:3.11-slim
 
@@ -40,3 +40,7 @@ RUN python3 -m pipx ensurepath;
 RUN python3 -m pipx completions;
 RUN /home/sm/.local/bin/pipx install poetry;
 RUN /home/sm/.local/bin/poetry completions bash >> ~/.bash_completion;
+# copy pyproject.toml into the container so `poetry install` can be
+# run. This is nessesary because the dir has not been mounted yet.
+COPY ./pyproject.toml .
+RUN ~/.local/bin/poetry install
