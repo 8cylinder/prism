@@ -6,7 +6,7 @@ from pathlib import Path
 from pprint import pprint as pp
 from textual import log
 
-from prism.prism import Prism
+from .prism import Prism
 # from textual.app import App
 
 
@@ -62,7 +62,7 @@ def prism(files: str, null: bool, debug_data: bool) -> None:
     rg 'search string' | prism -
     rg 'search string' -t py --line-number | prism -
     grep 'search string' -Hn * | prism -
-    find -iname "*py" -exec grep -Hn 'search string' {} \; | prism -
+    find -iname "*py" -exec grep -Hn 'search string' {} \\; | prism -
     find -iname "*py" -print0 | xargs --null grep --with-filename --line-number 'search string' | prism -
     find -path "**prism/*py" -print0 | prism --null -
 

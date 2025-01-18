@@ -1,19 +1,36 @@
-[tool.poetry]
+[project]
 name = "prism"
-version = "0.1.0"
-description = ""
-authors = ["sheldon <developer@8cylinder.com>"]
+version = "0.1.1"
+description = "View files found with cli tools"
 readme = "README.md"
+authors = [
+    {name = "Sheldon McGrandle", email = "developer@8cylinder.com"}
+]
+classifiers = [
+    'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
+    'Operating System :: MacOS',
+    'Operating System :: POSIX :: Linux',
+    'Programming Language :: Python :: 3.13',
+    'Intended Audience :: Developers',
+    'Natural Language :: English',
+]
+requires-python = ">=3.13"
+dependencies = [
+    "click>=8.1.8",
+    "textual>=1.0.0",
+]
 
-[tool.poetry.dependencies]
-python = "^3.9"
-click = "^8.1.7"
-textual = "^0.81.0"
-textual-dev = "^1.6.1"
-
-[tool.poetry.scripts]
-prism = "prism.__main__:main"
+[project.scripts]
+# prism = "prism:main"
+# kompressor = "kompressor:kompressor"
+prism = "prism:prism"
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.14.1",
+    "textual-dev>=1.7.0",
+]
