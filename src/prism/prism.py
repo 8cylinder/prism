@@ -1,30 +1,34 @@
-import sys
-import os
 import re
 
 from rich.syntax import Syntax
 from rich.traceback import Traceback
-from textual.strip import Strip
-from rich.segment import Segment
 from rich.style import Style
 
-from textual.scroll_view import ScrollView
-from textual.app import App, ComposeResult, RenderResult
-from textual.containers import Container, VerticalScroll, Horizontal, ScrollableContainer
+from textual.app import App, ComposeResult
+from textual.containers import Container, VerticalScroll
 from textual.reactive import var
 # from textual.widgets import DirectoryTree, Footer, Header, Static
-from textual.widget import Widget
 from textual.widgets import Footer, Header, Static, Label, ListItem, ListView
 from pathlib import Path
 import click
+import dataclasses
+
+# from .cli import FileData
+
+
+@dataclasses.dataclass
+class FileData:
+    file: Path
+    line_num: int
+    match_string: str
 
 
 class FileListItem(ListItem):
-    def __init__(self, file_item: list, classname: str) -> None:
+    def __init__(self, file_item: FileData, classname: str) -> None:
         super().__init__()
-        self.file: Path = file_item[0]
-        self.line_num: int = int(file_item[1])
-        self.match_string: str = file_item[2]
+        self.file: Path = file_item.file
+        self.line_num: int = file_item.line_num
+        self.match_string: str = file_item.match_string
         # self.highlight_range = (self.line_num, 0), (self.line_num, 1000)
         self.classname: str = classname
 
@@ -60,7 +64,7 @@ class Prism(App):
 
     show_files = var(True)
 
-    def __init__(self, files):
+    def __init__(self, files: list[FileData]) -> None:
         self.files = files
         super().__init__()
 
@@ -86,7 +90,7 @@ class Prism(App):
                 yield Static(id="code", expand=True)
         yield Footer()
 
-    def pretty_path(self, f):
+    def pretty_path(self, f: Path) -> str:
 
         segments = [
             click.style(f'{f.parent}/', fg='yellow', dim=True),
