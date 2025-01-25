@@ -50,6 +50,7 @@ def parse_filename(raw: str) -> FileData | None:
     if len(file_data) == 3:
         # convert the line number to an int
         data.line_num = int(file_data[1])
+        data.match_string = file_data[2]
     return data
 
 
@@ -72,7 +73,7 @@ def prism(search_results:str, null: bool, debug_data: bool) -> None:
 
     \b
     rg 'search string' | prism
-    rg 'search string' -t py --line-number | prism
+    rg 'search string' -t py --only-matching | prism
     grep 'search string' -Hn * | prism
     find -iname "*py" -exec grep -Hn 'search string' {} \\; | prism
     find -iname "*py" -print0 | xargs --null grep --with-filename --line-number 'search string' | prism

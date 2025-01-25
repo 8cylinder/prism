@@ -13,8 +13,6 @@ from pathlib import Path
 import click
 import dataclasses
 
-# from .cli import FileData
-
 
 @dataclasses.dataclass
 class FileData:
@@ -75,14 +73,12 @@ class Prism(App):
     def compose(self) -> ComposeResult:
         """Compose our UI."""
 
-        self.log(self.files)
         items = []
         for i, ele in enumerate(self.files):
             classname = 'odd' if i % 2 else 'even'
             items.append(
                 FileListItem(ele, classname)
             )
-
         yield Header()
         with Container():
             yield ListView(*items, id='file-list')
@@ -91,7 +87,6 @@ class Prism(App):
         yield Footer()
 
     def pretty_path(self, f: Path) -> str:
-
         segments = [
             click.style(f'{f.parent}/', fg='yellow', dim=True),
             click.style(f.name, bold=True),
@@ -116,17 +111,10 @@ class Prism(App):
                 theme="github-dark",
                 highlight_lines={line_num},
             )
-
             line = syntax.code.splitlines()[line_num - 1]
-            match = re.search(event.item.match_string, line)
+            match = re.search(re.escape(event.item.match_string), line)
             pos = match.span()
-            # self.log(event.item.match_string)
-            # self.log(match.string)
-            # self.log(line.replace(' ', 'x'))
-            # self.log('-' * match.start())
-            # self.log(match.start(), match.end(), match.span())
-
-            highlight = Style(color='bright_white', bgcolor='green')
+            highlight = Style(color='bright_white', bgcolor='orange4')
             syntax.stylize_range(highlight, (line_num, pos[0]), (line_num, pos[1]))
 
         except Exception:
