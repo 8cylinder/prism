@@ -55,6 +55,7 @@ class Prism(App):
 
     CSS_PATH = "css/prism.tcss"
     BINDINGS = [
+        ("l", "toggle_light", "Toggle light mode"),
         ("f", "toggle_files", "Toggle Files"),
         ("q", "quit", "Quit"),
     ]
@@ -133,3 +134,10 @@ class Prism(App):
         """Called in response to key binding."""
         self.show_files = not self.show_files
         self.log(self.show_files)
+
+
+    def action_toggle_light(self) -> None:
+        """An action to toggle dark mode."""
+        self.theme = (
+            "textual-dark" if self.theme == "textual-light" else "textual-light"
+        )
