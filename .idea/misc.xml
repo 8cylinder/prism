@@ -5,6 +5,7 @@
     <option name="enabledOnSave" value="true" />
     <option name="executionMode" value="BINARY" />
     <option name="pathToExecutable" value="/usr/bin/black" />
+    <option name="sdkName" value="Python 3.12 (prism)" />
   </component>
   <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.12 (prism)" project-jdk-type="Python SDK" />
 </project>

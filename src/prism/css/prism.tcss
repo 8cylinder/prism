@@ -7,19 +7,30 @@ Screen {
   width: 0%;
   height: 100%;
   background: $primary-background-darken-1;
+  content-align: right middle;
+
   /* scrollbar-gutter: stable; */
   /* overflow: auto; */
   /* width: auto; */
   /* height: 100%; */
 }
 
-.file-list-item{
+FileListItem{
+  /*padding: 0 1;*/
+}
+.testid{
+  color: red;
   padding: 0 1;
 }
+.file-list-item{
+  padding: 2 2;
+}
 .file-list-item.odd{
+  background: red;
   /* background: $primary-background-darken-1; */
 }
 .file-list-item.even{
+  background: blue;
   /* background: $primary-background-darken-2; */
 }
 .file-list-item:focus{

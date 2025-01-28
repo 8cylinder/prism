@@ -1,4 +1,8 @@
+from pathlib import Path
+import click
+import dataclasses
 import re
+from typing import Any
 
 from rich.syntax import Syntax
 from rich.traceback import Traceback
@@ -7,11 +11,9 @@ from rich.style import Style
 from textual.app import App, ComposeResult
 from textual.containers import Container, VerticalScroll
 from textual.reactive import var
+
 # from textual.widgets import DirectoryTree, Footer, Header, Static
 from textual.widgets import Footer, Header, Static, Label, ListItem, ListView
-from pathlib import Path
-import click
-import dataclasses
 
 
 @dataclasses.dataclass
@@ -22,6 +24,8 @@ class FileData:
 
 
 class FileListItem(ListItem):
+    # classes: str = "testid"
+
     def __init__(self, file_item: FileData, classname: str) -> None:
         super().__init__()
         self.file: Path = file_item.file
@@ -37,12 +41,12 @@ class FileListItem(ListItem):
         # see https://textual.textualize.io/guide/widgets/#segment-and-style
         # line_number = f' [bright_black]{self.line_num}[/]' if self.line_num else ''
 
-        parent = ''
+        parent = ""
         if len(self.file.parts) > 1:
-            parent = f'[b blue]{self.file.parent}/[/]'
+            parent = f"[b blue]{self.file.parent}/[/]"
         yield Label(
-            f'{parent}[b bright_white]{self.file.name}[/] [green]{self.line_num}[/]',
-            classes=''
+            f"{parent}[b bright_white]{self.file.name}[/] [green]{self.line_num}[/]",
+            classes="",
         )
 
         # with Container(classes='file-list-item'):
@@ -50,7 +54,7 @@ class FileListItem(ListItem):
         #     yield Label(f'{self.file.parent}/', classes='path', expand=True, shrink=True)
 
 
-class Prism(App):
+class Prism(App[Any]):
     """View files found."""
 
     CSS_PATH = "css/prism.tcss"
@@ -76,30 +80,27 @@ class Prism(App):
 
         items = []
         for i, ele in enumerate(self.files):
-            classname = 'odd' if i % 2 else 'even'
-            items.append(
-                FileListItem(ele, classname)
-            )
+            classname = "odd" if i % 2 else "even"
+            items.append(FileListItem(ele, classname))
         yield Header()
         with Container():
-            yield ListView(*items, id='file-list')
+            yield ListView(*items, id="file-list")
             with VerticalScroll(id="code-view"):
                 yield Static(id="code", expand=True)
         yield Footer()
 
     def pretty_path(self, f: Path) -> str:
         segments = [
-            click.style(f'{f.parent}/', fg='yellow', dim=True),
+            click.style(f"{f.parent}/", fg="yellow", dim=True),
             click.style(f.name, bold=True),
         ]
-        return ''.join(segments)
+        return "".join(segments)
 
     def on_mount(self) -> None:
         self.query_one(ListView).focus()
-        self.title = ''
+        self.title = ""
 
-    def on_list_view_highlighted(
-            self, event: ListView.Highlighted) -> None:
+    def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
         line_num = event.item.line_num
         event.stop()
         code_view = self.query_one("#code", Static)
@@ -115,7 +116,7 @@ class Prism(App):
             line = syntax.code.splitlines()[line_num - 1]
             match = re.search(re.escape(event.item.match_string), line)
             pos = match.span()
-            highlight = Style(color='bright_white', bgcolor='orange4')
+            highlight = Style(color="bright_white", bgcolor="orange4")
             syntax.stylize_range(highlight, (line_num, pos[0]), (line_num, pos[1]))
 
         except Exception:
@@ -128,13 +129,12 @@ class Prism(App):
                 y=int(event.item.line_num) - scroll_offset,
                 animate=False,
             )
-            self.title = self.pretty_path(event.item.file)  #str(event.item.file)
+            self.title = self.pretty_path(event.item.file)  # str(event.item.file)
 
     def action_toggle_files(self) -> None:
         """Called in response to key binding."""
         self.show_files = not self.show_files
         self.log(self.show_files)
-
 
     def action_toggle_light(self) -> None:
         """An action to toggle dark mode."""
