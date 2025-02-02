@@ -97,7 +97,8 @@ def prism(search_results: str, null: bool, debug_data: bool) -> None:
     """
 
     if search_results:
-        pipe = search_results[0]
+        pipe = search_results
+        pipe = '\n'.join(pipe)
     elif sys.stdin.isatty():
         print("No input in pipe.")
         sys.exit(1)
