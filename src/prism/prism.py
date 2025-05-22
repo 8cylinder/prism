@@ -25,6 +25,7 @@ class FileData:
 
 class FileListItem(ListItem):
     # classes: str = "testid"
+    data: FileData
 
     def __init__(self, file_item: FileData, classname: str) -> None:
         super().__init__()
@@ -33,6 +34,7 @@ class FileListItem(ListItem):
         self.match_string: str = file_item.match_string
         # self.highlight_range = (self.line_num, 0), (self.line_num, 1000)
         self.classname: str = classname
+        self.data = file_item
 
     # def get_highlight_range(self):
     #     return (self.line_num, 0), (self.line_num, 1000)
@@ -82,6 +84,7 @@ class Prism(App[Any]):
         for i, ele in enumerate(self.files):
             classname = "odd" if i % 2 else "even"
             items.append(FileListItem(ele, classname))
+
         yield Header()
         with Container():
             yield ListView(*items, id="file-list")
@@ -101,12 +104,14 @@ class Prism(App[Any]):
         self.title = ""
 
     def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
-        line_num = event.item.line_num
+        # print(event.item.__dict__)
+        data = event.item.data
+        line_num = data.line_num  # event.item.line_num
         event.stop()
         code_view = self.query_one("#code", Static)
         try:
             syntax = Syntax.from_path(
-                str(event.item.file),
+                str(data.file),
                 line_numbers=True,
                 word_wrap=True,
                 indent_guides=False,
@@ -114,10 +119,11 @@ class Prism(App[Any]):
                 highlight_lines={line_num},
             )
             line = syntax.code.splitlines()[line_num - 1]
-            match = re.search(re.escape(event.item.match_string), line)
-            pos = match.span()
-            highlight = Style(color="bright_white", bgcolor="orange4")
-            syntax.stylize_range(highlight, (line_num, pos[0]), (line_num, pos[1]))
+            match = re.search(re.escape(data.match_string), line)
+            if match:
+                pos = match.span()
+                highlight = Style(color="bright_white", bgcolor="orange4")
+                syntax.stylize_range(highlight, (line_num, pos[0]), (line_num, pos[1]))
 
         except Exception:
             code_view.update(Traceback(theme="github-dark", width=None))
@@ -126,10 +132,10 @@ class Prism(App[Any]):
             code_view.update(syntax)
             scroll_offset = self.size.height // 3
             self.query_one("#code-view").scroll_to(
-                y=int(event.item.line_num) - scroll_offset,
+                y=int(line_num) - scroll_offset,
                 animate=False,
             )
-            self.title = self.pretty_path(event.item.file)  # str(event.item.file)
+            self.title = self.pretty_path(data.file)  # str(event.item.file)
 
     def action_toggle_files(self) -> None:
         """Called in response to key binding."""

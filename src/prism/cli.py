@@ -1,4 +1,3 @@
-
 import click
 import sys
 import importlib.metadata
@@ -12,7 +11,7 @@ __version__ = importlib.metadata.version("prism")
 
 
 def parse_stdin(raw: str, null_sep: bool) -> list[FileData]:
-    split_char = '\x00' if null_sep else '\n'
+    split_char = "\x00" if null_sep else "\n"
     raw = raw.strip(split_char)  # find appends a null byte to the end of the string
     names = raw.split(split_char)
     parsed_names: list[FileData] = []
@@ -37,7 +36,7 @@ def parse_filename(raw: str) -> FileData | None:
       /path/to/file:match_string
       /path/to/file:line_number:match_string
     """
-    file_data: list[str] = raw.split(':', 2)
+    file_data: list[str] = raw.split(":", 2)
     filename = Path(file_data[0])
     if filename.is_dir():
         click.echo(f'Skipping directory: "{filename}"', err=True)
@@ -45,26 +44,35 @@ def parse_filename(raw: str) -> FileData | None:
     elif not filename.exists():
         raise click.BadParameter(f"Path '{file_data[0]}' does not exist.")
 
-    data = FileData(filename, 0, '')
+    data = FileData(filename, 0, "")
+    print(file_data)
 
-    if len(file_data) == 3:
-        # convert the line number to an int
+    # exit()
+    if len(file_data) == 2:
+        data.match_string = file_data[1]
+    elif len(file_data) == 3:
         data.line_num = int(file_data[1])
         data.match_string = file_data[2]
     return data
 
 
 CONTEXT_SETTINGS = {
-    'help_option_names': ['-h', '--help'],
+    "help_option_names": ["-h", "--help"],
 }
+
+
 @click.command(context_settings=CONTEXT_SETTINGS)
 # @click.argument('files', type=click.File(), nargs=-1)
-@click.argument('search_results', nargs=-1)
-@click.option('--null/--no-null', '-n/ ', default=False,
-              help='Whether or not the filenames are null terminated or space separated.')
-@click.option('--debug-data', is_flag=True)
+@click.argument("search_results", nargs=-1)
+@click.option(
+    "--null/--no-null",
+    "-n/ ",
+    default=False,
+    help="Whether or not the filenames are null terminated or space separated.",
+)
+@click.option("--debug-data", is_flag=True)
 @click.version_option(__version__)
-def prism(search_results:str, null: bool, debug_data: bool) -> None:
+def prism(search_results: str, null: bool, debug_data: bool) -> None:
     """View files found with various means, find, rg, grep.
 
     \b
@@ -91,12 +99,12 @@ def prism(search_results:str, null: bool, debug_data: bool) -> None:
     if search_results:
         pipe = search_results[0]
     elif sys.stdin.isatty():
-        print('No input in pipe.')
+        print("No input in pipe.")
         sys.exit(1)
     else:
         pipe = sys.stdin.read()
         # https://github.com/Textualize/textual/issues/3831#issuecomment-2090349094
-        sys.__stdin__ = open('/dev/tty', 'r')
+        sys.__stdin__ = open("/dev/tty", "r")
 
     filenames = parse_stdin(pipe, null)
 
