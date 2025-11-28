@@ -19,7 +19,9 @@ left and syntax-highlighted file contents on the right.
 
 
 ## Coding standards
-- All code must have black run on it.
+- All code must have black run on it
+- Type checking with mypy must pass
+- Follow Textual best practices: use CSS for styling, not hardcoded colors in Python
 
 ## Development Commands
 
@@ -64,49 +66,59 @@ Supported input formats (parsed in `parse_filename()`):
 - With match string: `/path/to/file:match_string`
 - With line number: `/path/to/file:123:match_string`
 
+### Configuration Constants (prism.py:19-25)
+The following constants at the top of `prism.py` control styling and behavior:
+- `DEFAULT_SYNTAX_THEME` - Theme for syntax highlighting ("github-dark")
+- `DEFAULT_TRACEBACK_THEME` - Theme for error tracebacks
+- `SCROLL_OFFSET_RATIO` - Controls scroll position when highlighting a line (3 = 1/3 screen height)
+- `MATCH_HIGHLIGHT_COLOR`, `MATCH_HIGHLIGHT_BGCOLOR` - Colors for highlighting matched text
+
 ### Data Model
-`FileData` dataclass (prism.py:22-26) represents each file entry:
+`FileData` dataclass (prism.py:28-31) represents each file entry:
 - `file: Path` - File path
 - `line_num: int` - Line number to highlight (0 if none)
 - `match_string: str` - Text to highlight within the line
 
 ### UI Components (`prism.py`)
 
-**Main App: `Prism(App)`** (line 62)
-- Two-pane layout: `ListView` (file list) + `VerticalScroll` (code
-  viewer)
-- Reactive variable `show_files` toggles file list visibility
-- Key bindings: `l` (toggle light/dark), `f` (toggle file list), `e`
-  (edit file), `q` (quit)
+**Main App: `Prism(App[None])`** (line 56)
+- Two-pane layout: `ListView` (file list) + `VerticalScroll` (code viewer)
+- Reactive variable `file_list_state` cycles through three width states:
+  - `"narrow"` - 20% width
+  - `"wide"` - 80% width
+  - `"hidden"` - 0% width (invisible)
+- Key bindings: `l` (toggle light/dark), `f` (toggle file list width), `e` (edit file), `q` (quit)
 
-**Custom Widget: `FileListItem(ListItem)`** (line 29)
-- Displays file path with parent directory styling
-- Shows line number if available
+**Custom Widget: `FileListItem(ListItem)`** (line 34)
+- Uses CSS classes for styling instead of hardcoded Rich markup:
+  - `.file-parent` - Parent directory path
+  - `.file-name` - Filename
+  - `.line-number` - Line number indicator
+- Odd/even classes are properly applied for alternating row colors
 - Stores `FileData` for access on selection
 
 **Event Handling:**
-- `on_list_view_highlighted()` (line 110): Updates code view when file
-  selected
+- `on_list_view_highlighted()` (line 110): Updates code view when file selected
+  - Type-checks event.item to ensure it's a FileListItem
   - Loads syntax highlighting via `rich.syntax.Syntax`
   - Highlights the specified line
   - Uses regex to find and highlight the match string within the line
-    (line 126-130)
-  - Auto-scrolls to position highlighted line at 1/3 screen height
+  - Auto-scrolls to position highlighted line based on `SCROLL_OFFSET_RATIO`
+  - Error handling: catches `OSError` (file read errors), `UnicodeDecodeError` (binary files), `IndexError` (invalid line numbers)
 
 **Styling:**
 - Uses Textual CSS (TCSS) in `src/prism/css/prism.tcss`
-- File list visibility controlled by `.-show-files` class modifier
-  (tcss:56-59)
-- Dark theme: `github-dark` for syntax highlighting
+- File list width states controlled by classes: `.-files-narrow`, `.-files-wide`, `.-files-hidden`
+- Alternating row colors via `FileListItem.odd` and `FileListItem.even` classes
+- All colors use Textual theme variables (`$primary-background-darken-1`, `$accent`, `$success`, etc.)
+- Syntax theme controlled by `DEFAULT_SYNTAX_THEME` constant
 
 ### Editor Integration
-The `action_edit_file()` (line 155) currently hardcodes `emacs -nw
--q`. To respect user's `$EDITOR`, replace line 166 with:
-
-```python
-editor = os.getenv("EDITOR", "nano")
-os.system(f"{editor} {item.file}")
-```
+The `action_edit_file()` (line 166) uses `subprocess.run()` for security:
+- Respects `$EDITOR` environment variable (defaults to "nano")
+- Uses `shlex.split()` to safely parse editor commands with arguments
+- Type-checks to ensure the selected item is a `FileListItem`
+- Suspends the TUI while editing, then resumes
 
 ## Common Patterns
 

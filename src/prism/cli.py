@@ -3,7 +3,6 @@ import sys
 import os
 import importlib.metadata
 from pathlib import Path
-from pprint import pprint as pp  # noqa
 from .prism import Prism
 from .prism import FileData
 
@@ -46,9 +45,7 @@ def parse_filename(raw: str) -> FileData | None:
         raise click.BadParameter(f"Path '{file_data[0]}' does not exist.")
 
     data = FileData(filename, 0, "")
-    print(file_data)
 
-    # exit()
     if len(file_data) == 2:
         data.match_string = file_data[1]
     elif len(file_data) == 3:
@@ -63,7 +60,6 @@ CONTEXT_SETTINGS = {
 
 
 @click.command(context_settings=CONTEXT_SETTINGS)
-# @click.argument('files', type=click.File(), nargs=-1)
 @click.argument("search_results", nargs=-1)
 @click.option(
     "--null/--no-null",
@@ -73,7 +69,7 @@ CONTEXT_SETTINGS = {
 )
 @click.option("--debug-data", is_flag=True)
 @click.version_option(__version__)
-def prism(search_results: str, null: bool, debug_data: bool) -> None:
+def prism(search_results: tuple[str, ...], null: bool, debug_data: bool) -> None:
     """View files found with various means, find, rg, grep.
 
     \b
@@ -98,28 +94,23 @@ def prism(search_results: str, null: bool, debug_data: bool) -> None:
     ... | uv run textual run --dev prism:prism -h
     """
 
+    raw_input: str
     if search_results:
-        # is tty true
-        filenames = search_results
-        filenames = '\n'.join(filenames)
-
+        raw_input = "\n".join(search_results)
     elif sys.stdin.isatty():
         print("No input in pipe.")
         sys.exit(1)
     else:
-        # is tty false
-        filenames = sys.stdin.read()
+        raw_input = sys.stdin.read()
+        # Reopen stdin from /dev/tty for Textual
         # https://github.com/Textualize/textual/issues/3831#issuecomment-2090349094
-        sys.__stdin__ = open("/dev/tty", "r")
+        sys.__stdin__ = open("/dev/tty", "r")  # type: ignore[misc]
 
-    # print('is tty:', sys.stdin.isatty())
-    # exit(0)
-    # pp(os.ttyname(sys.stdout.fileno()))
-    # exit()
-    filenames = parse_stdin(filenames, null)
+    parsed_files = parse_stdin(raw_input, null)
 
     if debug_data:
-        pp(filenames)
+        for f in parsed_files:
+            print(f)
     else:
-        app = Prism(files=filenames)
+        app = Prism(files=parsed_files)
         app.run()
