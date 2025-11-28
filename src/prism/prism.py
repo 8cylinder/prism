@@ -3,6 +3,9 @@ import click
 import dataclasses
 import re
 from typing import Any
+import os
+import subprocess
+import sys
 
 from rich.syntax import Syntax
 from rich.traceback import Traceback
@@ -63,6 +66,7 @@ class Prism(App[Any]):
     BINDINGS = [
         ("l", "toggle_light", "Toggle light mode"),
         ("f", "toggle_files", "Toggle Files"),
+        ('e', 'edit_file', 'Edit File'),
         ("q", "quit", "Quit"),
     ]
     ENABLE_COMMAND_PALETTE = False
@@ -147,3 +151,22 @@ class Prism(App[Any]):
         self.theme = (
             "textual-dark" if self.theme == "textual-light" else "textual-light"
         )
+
+    def action_edit_file(self) -> None:
+        """Edit the file."""
+        list_view: ListView = self.query_one(ListView)
+        item = list_view.highlighted_child
+        if item:
+            # print('>>>', item.file)
+            # pipe: /dev/tty, args: <stdin>
+
+
+            self.log('>>>', sys.__stdin__.name)
+            with self.suspend():
+                os.system(f"emacs -nw -q {item.file}")
+                # os.system(f"nano {item.file}")
+            # print(item.__dict__)
+            # print(item.file)
+            # editor = os.getenv("EDITOR", "nano")
+            # subprocess.run(['nano', item.file])
+            # self.system(f"less {item.file}")

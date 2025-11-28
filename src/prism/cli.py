@@ -1,5 +1,6 @@
 import click
 import sys
+import os
 import importlib.metadata
 from pathlib import Path
 from pprint import pprint as pp  # noqa
@@ -97,17 +98,24 @@ def prism(search_results: str, null: bool, debug_data: bool) -> None:
     """
 
     if search_results:
-        pipe = search_results
-        pipe = '\n'.join(pipe)
+        # is tty true
+        filenames = search_results
+        filenames = '\n'.join(filenames)
+
     elif sys.stdin.isatty():
         print("No input in pipe.")
         sys.exit(1)
     else:
-        pipe = sys.stdin.read()
+        # is tty false
+        filenames = sys.stdin.read()
         # https://github.com/Textualize/textual/issues/3831#issuecomment-2090349094
         sys.__stdin__ = open("/dev/tty", "r")
 
-    filenames = parse_stdin(pipe, null)
+    # print('is tty:', sys.stdin.isatty())
+    # exit(0)
+    # pp(os.ttyname(sys.stdout.fileno()))
+    # exit()
+    filenames = parse_stdin(filenames, null)
 
     if debug_data:
         pp(filenames)
