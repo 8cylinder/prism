@@ -1,5 +1,4 @@
 from pathlib import Path
-import click
 import dataclasses
 import re
 from typing import Literal
@@ -14,9 +13,9 @@ from rich.style import Style
 from rich.text import Text
 
 from textual.app import App, ComposeResult
-from textual.containers import Container, VerticalScroll, Horizontal
+from textual.containers import Container, VerticalScroll
 from textual.reactive import var
-from textual.widgets import Footer, Header, Static, Label, ListItem, ListView
+from textual.widgets import Footer, Header, Static, ListItem, ListView
 
 # Constants
 FileListState = Literal["narrow", "wide", "hidden"]
@@ -36,28 +35,22 @@ class FileData:
 
 
 class FileListItem(ListItem):
-    data: FileData
-
-    def __init__(self, file_item: FileData, classname: str) -> None:
+    def __init__(self, file_data: FileData) -> None:
         super().__init__()
-        self.file: Path = file_item.file
-        self.line_num: int = file_item.line_num
-        self.match_string: str = file_item.match_string
-        self.classname: str = classname
-        self.data = file_item
+        self.data = file_data
 
     def render(self) -> Text:
         """Render the file list item as rich Text."""
         # First line: filename and line number
         text = Text()
-        text.append(self.file.name, style="bold")
-        if self.line_num:
-            text.append(f":{self.line_num}", style="green")
+        text.append(self.data.file.name, style="bold")
+        if self.data.line_num:
+            text.append(f":{self.data.line_num}", style="green")
 
         # Second line: parent directory path (if exists)
-        if len(self.file.parts) > 1:
+        if len(self.data.file.parts) > 1:
             text.append("\n")
-            text.append(f"{self.file.parent}/", style="dim italic")
+            text.append(f"{self.data.file.parent}/", style="dim italic")
 
         return text
 
@@ -93,14 +86,24 @@ class Prism(App[None]):
         # Add the current state class
         self.add_class(f"-files-{new_state}")
 
+    def watch_word_wrap(self, new_wrap: bool) -> None:
+        """Called when word_wrap is modified."""
+        # Refresh the current view
+        list_view = self.query_one(ListView)
+        if list_view.highlighted_child and isinstance(
+            list_view.highlighted_child, FileListItem
+        ):
+            self.on_list_view_highlighted(
+                ListView.Highlighted(list_view, list_view.highlighted_child)
+            )
+
     def compose(self) -> ComposeResult:
         """Compose our UI."""
 
         items = []
-        for i, ele in enumerate(self.files):
-            classname = "odd" if i % 2 else "even"
-            item = FileListItem(ele, classname)
-            item.add_class(classname)
+        for i, file_data in enumerate(self.files):
+            item = FileListItem(file_data)
+            item.add_class("odd" if i % 2 else "even")
             items.append(item)
 
         yield Header(show_clock=False)
@@ -109,10 +112,6 @@ class Prism(App[None]):
             with VerticalScroll(id="code-view"):
                 yield Static(id="code", expand=True)
         yield Footer()
-
-    def pretty_path(self, f: Path) -> str:
-        """Return the file path as a plain string for the header title."""
-        return str(f)
 
     def on_mount(self) -> None:
         self.query_one(ListView).focus()
@@ -164,7 +163,7 @@ class Prism(App[None]):
                 y=int(line_num) - scroll_offset,
                 animate=False,
             )
-            self.title = self.pretty_path(data.file)
+            self.title = str(data.file)
 
     def action_toggle_files(self) -> None:
         """Called in response to key binding. Cycles through narrow -> wide -> hidden."""
@@ -178,14 +177,6 @@ class Prism(App[None]):
     def action_toggle_wrap(self) -> None:
         """Toggle word wrap in the code viewer."""
         self.word_wrap = not self.word_wrap
-        # Refresh the current view
-        list_view = self.query_one(ListView)
-        if list_view.highlighted_child and isinstance(
-            list_view.highlighted_child, FileListItem
-        ):
-            self.on_list_view_highlighted(
-                ListView.Highlighted(list_view, list_view.highlighted_child)
-            )
 
     def action_next_item(self) -> None:
         """Move to the next item in the list."""
@@ -207,15 +198,15 @@ class Prism(App[None]):
             editor_parts = shlex.split(editor)
 
             # Add line number and column support for emacs
-            if "emacs" in editor_parts[0].lower() and item.line_num:
+            if "emacs" in editor_parts[0].lower() and item.data.line_num:
                 if item.data.column:
                     # Jump to specific line and column: +linenum:column
-                    editor_parts.append(f"+{item.line_num}:{item.data.column}")
+                    editor_parts.append(f"+{item.data.line_num}:{item.data.column}")
                 else:
                     # Jump to line only: +linenum
-                    editor_parts.append(f"+{item.line_num}")
+                    editor_parts.append(f"+{item.data.line_num}")
 
-            editor_parts.append(str(item.file))
+            editor_parts.append(str(item.data.file))
 
             with self.suspend():
                 # Pass terminal handles explicitly so editor can interact with terminal
