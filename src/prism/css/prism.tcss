@@ -28,6 +28,11 @@ FileListItem{
   padding: 0 1;
 }
 
+FileListItem Vertical {
+  height: auto;
+  width: 100%;
+}
+
 FileListItem Horizontal {
   height: auto;
   width: 100%;

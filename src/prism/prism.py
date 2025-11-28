@@ -13,7 +13,7 @@ from rich.traceback import Traceback
 from rich.style import Style
 
 from textual.app import App, ComposeResult
-from textual.containers import Container, VerticalScroll, Horizontal
+from textual.containers import Container, VerticalScroll, Horizontal, Vertical
 from textual.reactive import var
 from textual.widgets import Footer, Header, Static, Label, ListItem, ListView
 
@@ -31,6 +31,7 @@ class FileData:
     file: Path
     line_num: int
     match_string: str
+    column: int = 0  # Column position of match (0 if unknown)
 
 
 class FileListItem(ListItem):
@@ -45,12 +46,15 @@ class FileListItem(ListItem):
         self.data = file_item
 
     def compose(self) -> ComposeResult:
-        with Horizontal():
+        with Vertical():
+            # First line: filename and line number
+            with Horizontal():
+                yield Label(self.file.name, classes="file-name")
+                if self.line_num:
+                    yield Label(f":{self.line_num}", classes="line-number")
+            # Second line: parent directory path
             if len(self.file.parts) > 1:
                 yield Label(f"{self.file.parent}/", classes="file-parent")
-            yield Label(self.file.name, classes="file-name")
-            if self.line_num:
-                yield Label(f":{self.line_num}", classes="line-number")
 
 
 class Prism(App[None]):
@@ -128,6 +132,8 @@ class Prism(App[None]):
             match = re.search(re.escape(data.match_string), line)
             if match:
                 pos = match.span()
+                # Store column position for editor (emacs uses 1-indexed columns)
+                data.column = pos[0] + 1
                 highlight = Style(
                     color=MATCH_HIGHLIGHT_COLOR, bgcolor=MATCH_HIGHLIGHT_BGCOLOR
                 )
@@ -172,9 +178,14 @@ class Prism(App[None]):
             # Handle editors with arguments (e.g., "emacs -nw")
             editor_parts = shlex.split(editor)
 
-            # Add line number support for emacs
+            # Add line number and column support for emacs
             if "emacs" in editor_parts[0].lower() and item.line_num:
-                editor_parts.append(f"+{item.line_num}")
+                if item.data.column:
+                    # Jump to specific line and column: +linenum:column
+                    editor_parts.append(f"+{item.line_num}:{item.data.column}")
+                else:
+                    # Jump to line only: +linenum
+                    editor_parts.append(f"+{item.line_num}")
 
             editor_parts.append(str(item.file))
 
