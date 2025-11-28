@@ -2,6 +2,19 @@ Screen {
   background: $surface-darken-1;
 }
 
+Header {
+  dock: top;
+}
+
+Header .header--title {
+  color: $text;
+  text-style: bold;
+}
+
+HeaderIcon {
+  display: none;
+}
+
 #file-list{
   dock: left;
   width: 20%;

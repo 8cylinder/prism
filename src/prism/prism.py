@@ -73,11 +73,13 @@ class Prism(App[None]):
         ("j", "next_item", "Next"),
         ("p", "prev_item", "Previous"),
         ("k", "prev_item", "Previous"),
+        ("w", "toggle_wrap", "Toggle Wrap"),
         ("q", "quit", "Quit"),
     ]
     ENABLE_COMMAND_PALETTE = False
 
     file_list_state: var[FileListState] = var("narrow")
+    word_wrap: var[bool] = var(True)
 
     def __init__(self, files: list[FileData]) -> None:
         self.files = files
@@ -101,7 +103,7 @@ class Prism(App[None]):
             item.add_class(classname)
             items.append(item)
 
-        yield Header()
+        yield Header(show_clock=False)
         with Container():
             yield ListView(*items, id="file-list")
             with VerticalScroll(id="code-view"):
@@ -109,11 +111,8 @@ class Prism(App[None]):
         yield Footer()
 
     def pretty_path(self, f: Path) -> str:
-        segments = [
-            click.style(f"{f.parent}/", fg="yellow", dim=True),
-            click.style(f.name, bold=True),
-        ]
-        return "".join(segments)
+        """Return the file path as a plain string for the header title."""
+        return str(f)
 
     def on_mount(self) -> None:
         self.query_one(ListView).focus()
@@ -136,7 +135,7 @@ class Prism(App[None]):
             syntax = Syntax.from_path(
                 str(data.file),
                 line_numbers=True,
-                word_wrap=True,
+                word_wrap=self.word_wrap,
                 indent_guides=False,
                 theme=DEFAULT_SYNTAX_THEME,
                 highlight_lines={line_num},
@@ -175,6 +174,18 @@ class Prism(App[None]):
             self.file_list_state = "hidden"
         else:  # hidden
             self.file_list_state = "narrow"
+
+    def action_toggle_wrap(self) -> None:
+        """Toggle word wrap in the code viewer."""
+        self.word_wrap = not self.word_wrap
+        # Refresh the current view
+        list_view = self.query_one(ListView)
+        if list_view.highlighted_child and isinstance(
+            list_view.highlighted_child, FileListItem
+        ):
+            self.on_list_view_highlighted(
+                ListView.Highlighted(list_view, list_view.highlighted_child)
+            )
 
     def action_next_item(self) -> None:
         """Move to the next item in the list."""
