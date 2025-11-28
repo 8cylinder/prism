@@ -67,9 +67,12 @@ class Prism(App[None]):
 
     CSS_PATH = "css/prism.tcss"
     BINDINGS = [
-        ("l", "toggle_light", "Toggle light mode"),
         ("f", "toggle_files", "Toggle Files"),
         ("e", "edit_file", "Edit File"),
+        ("n", "next_item", "Next"),
+        ("j", "next_item", "Next"),
+        ("p", "prev_item", "Previous"),
+        ("k", "prev_item", "Previous"),
         ("q", "quit", "Quit"),
     ]
     ENABLE_COMMAND_PALETTE = False
@@ -173,11 +176,15 @@ class Prism(App[None]):
         else:  # hidden
             self.file_list_state = "narrow"
 
-    def action_toggle_light(self) -> None:
-        """An action to toggle dark mode."""
-        self.theme = (
-            "textual-dark" if self.theme == "textual-light" else "textual-light"
-        )
+    def action_next_item(self) -> None:
+        """Move to the next item in the list."""
+        list_view = self.query_one(ListView)
+        list_view.action_cursor_down()
+
+    def action_prev_item(self) -> None:
+        """Move to the previous item in the list."""
+        list_view = self.query_one(ListView)
+        list_view.action_cursor_up()
 
     def action_edit_file(self) -> None:
         """Edit the file."""
