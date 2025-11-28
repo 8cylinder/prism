@@ -23,47 +23,23 @@ Screen {
   width: 0%;
 }
 
-FileListItem{
+FileListItem {
   height: auto;
   padding: 0 1;
 }
 
-FileListItem Vertical {
-  height: auto;
-  width: 100%;
-}
-
-FileListItem Horizontal {
-  height: auto;
-  width: 100%;
-}
-
-FileListItem.odd{
-  background: $primary-background-darken-1;
-}
-
-FileListItem.even{
+FileListItem.odd {
   background: $primary-background-darken-2;
 }
 
-FileListItem:focus{
-  background: $accent;
+FileListItem.even {
+  background: $primary-background-darken-1;
 }
 
-FileListItem:hover{
+FileListItem.selected {
+  background: $primary-darken-3;
+}
+
+FileListItem:hover {
   background: $primary-background-lighten-1;
-}
-
-.file-parent{
-  color: $secondary;
-  text-style: italic;
-}
-
-.file-name{
-  color: $text;
-  text-style: bold;
-}
-
-.line-number{
-  color: $success;
 }

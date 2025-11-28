@@ -104,7 +104,11 @@ def prism(search_results: tuple[str, ...], null: bool, debug_data: bool) -> None
         raw_input = sys.stdin.read()
         # Reopen stdin from /dev/tty for Textual
         # https://github.com/Textualize/textual/issues/3831#issuecomment-2090349094
-        sys.__stdin__ = open("/dev/tty", "r")  # type: ignore[misc]
+        try:
+            sys.__stdin__ = open("/dev/tty", "r")  # type: ignore[misc]
+        except OSError:
+            # /dev/tty not available (e.g., in some environments)
+            pass
 
     parsed_files = parse_stdin(raw_input, null)
 

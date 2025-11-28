@@ -11,9 +11,10 @@ import shlex
 from rich.syntax import Syntax
 from rich.traceback import Traceback
 from rich.style import Style
+from rich.text import Text
 
 from textual.app import App, ComposeResult
-from textual.containers import Container, VerticalScroll, Horizontal, Vertical
+from textual.containers import Container, VerticalScroll, Horizontal
 from textual.reactive import var
 from textual.widgets import Footer, Header, Static, Label, ListItem, ListView
 
@@ -45,16 +46,20 @@ class FileListItem(ListItem):
         self.classname: str = classname
         self.data = file_item
 
-    def compose(self) -> ComposeResult:
-        with Vertical():
-            # First line: filename and line number
-            with Horizontal():
-                yield Label(self.file.name, classes="file-name")
-                if self.line_num:
-                    yield Label(f":{self.line_num}", classes="line-number")
-            # Second line: parent directory path
-            if len(self.file.parts) > 1:
-                yield Label(f"{self.file.parent}/", classes="file-parent")
+    def render(self) -> Text:
+        """Render the file list item as rich Text."""
+        # First line: filename and line number
+        text = Text()
+        text.append(self.file.name, style="bold")
+        if self.line_num:
+            text.append(f":{self.line_num}", style="green")
+
+        # Second line: parent directory path (if exists)
+        if len(self.file.parts) > 1:
+            text.append("\n")
+            text.append(f"{self.file.parent}/", style="dim italic")
+
+        return text
 
 
 class Prism(App[None]):
@@ -114,6 +119,11 @@ class Prism(App[None]):
     def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
         if not isinstance(event.item, FileListItem):
             return
+
+        # Clear selection from all items and add to current item
+        for item in self.query(FileListItem):
+            item.remove_class("selected")
+        event.item.add_class("selected")
 
         data = event.item.data
         line_num = data.line_num
