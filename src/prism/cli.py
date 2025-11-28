@@ -83,6 +83,7 @@ def prism(search_results: str, null: bool, debug_data: bool) -> None:
     \b
     rg 'search string' | prism
     rg 'search string' -t py --only-matching | prism
+    rg 'search string' -o | prism
     grep 'search string' -Hn * | prism
     find -iname "*py" -exec grep -Hn 'search string' {} \\; | prism
     find -iname "*py" -print0 | xargs --null grep --with-filename --line-number 'search string' | prism

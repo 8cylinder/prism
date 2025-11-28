@@ -2,7 +2,7 @@ from pathlib import Path
 import click
 import dataclasses
 import re
-from typing import Any
+from typing import Any, Literal
 import os
 import subprocess
 import sys
@@ -17,6 +17,8 @@ from textual.reactive import var
 
 # from textual.widgets import DirectoryTree, Footer, Header, Static
 from textual.widgets import Footer, Header, Static, Label, ListItem, ListView
+
+FileListState = Literal["narrow", "wide", "hidden"]
 
 
 @dataclasses.dataclass
@@ -66,20 +68,24 @@ class Prism(App[Any]):
     BINDINGS = [
         ("l", "toggle_light", "Toggle light mode"),
         ("f", "toggle_files", "Toggle Files"),
-        ('e', 'edit_file', 'Edit File'),
+        ("e", "edit_file", "Edit File"),
         ("q", "quit", "Quit"),
     ]
     ENABLE_COMMAND_PALETTE = False
 
-    show_files = var(True)
+    file_list_state: var[FileListState] = var("narrow")
 
     def __init__(self, files: list[FileData]) -> None:
         self.files = files
         super().__init__()
 
-    def watch_show_files(self, show_files: bool) -> None:
-        """Called when show_files is modified."""
-        self.set_class(show_files, "-show-files")
+    def watch_file_list_state(self, new_state: FileListState) -> None:
+        """Called when file_list_state is modified."""
+        # Remove all state classes
+        self.remove_class("-files-narrow", "-files-wide", "-files-hidden")
+
+        # Add the current state class
+        self.add_class(f"-files-{new_state}")
 
     def compose(self) -> ComposeResult:
         """Compose our UI."""
@@ -142,9 +148,13 @@ class Prism(App[Any]):
             self.title = self.pretty_path(data.file)  # str(event.item.file)
 
     def action_toggle_files(self) -> None:
-        """Called in response to key binding."""
-        self.show_files = not self.show_files
-        self.log(self.show_files)
+        """Called in response to key binding. Cycles through narrow -> wide -> hidden."""
+        if self.file_list_state == "narrow":
+            self.file_list_state = "wide"
+        elif self.file_list_state == "wide":
+            self.file_list_state = "hidden"
+        else:  # hidden
+            self.file_list_state = "narrow"
 
     def action_toggle_light(self) -> None:
         """An action to toggle dark mode."""
@@ -160,8 +170,7 @@ class Prism(App[Any]):
             # print('>>>', item.file)
             # pipe: /dev/tty, args: <stdin>
 
-
-            self.log('>>>', sys.__stdin__.name)
+            self.log(">>>", sys.__stdin__.name)
             with self.suspend():
                 os.system(f"emacs -nw -q {item.file}")
                 # os.system(f"nano {item.file}")

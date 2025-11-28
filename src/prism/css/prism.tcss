@@ -4,7 +4,7 @@ Screen {
 
 #file-list{
   dock: left;
-  width: 0%;
+  width: 20%;
   height: 100%;
   background: $primary-background-darken-1;
   content-align: right middle;
@@ -13,6 +13,19 @@ Screen {
   /* overflow: auto; */
   /* width: auto; */
   /* height: 100%; */
+}
+
+/* File list width states */
+.-files-narrow #file-list {
+  width: 20%;
+}
+
+.-files-wide #file-list {
+  width: 80%;
+}
+
+.-files-hidden #file-list {
+  width: 0%;
 }
 
 FileListItem{
@@ -51,11 +64,6 @@ FileListItem{
   color: $secondary;
   text-style: italic;
   /* text-align: right; */
-}
-
-.-show-files #file-list {
-  display: block;
-  width: 25%;
 }
 
 /* Prism #file-list{ */
