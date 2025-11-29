@@ -10,7 +10,6 @@ Header .header--title {
   width: 100%;
   text-align: center;
   color: $text;
-  text-style: bold;
 }
 
 HeaderIcon {
@@ -45,6 +44,7 @@ HeaderClockSpace {
 FileListItem {
   height: auto;
   padding: 0 1;
+  text-style: none;
 }
 
 FileListItem.odd {

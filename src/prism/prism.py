@@ -64,7 +64,7 @@ class FileListItem(ListItem):
         line_num_str = f":{self.data.line_num}" if self.data.line_num else ""
         available_width = self.size.width - len(line_num_str)
         filename = snip(self.data.file.name, available_width)
-        text.append(filename, style="bold")
+        text.append(filename, style="")
         if self.data.line_num:
             text.append(line_num_str, style="green")
 
