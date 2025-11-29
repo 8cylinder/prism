@@ -13,6 +13,7 @@ from rich.style import Style
 from rich.text import Text
 
 from textual.app import App, ComposeResult
+from textual.binding import Binding
 from textual.containers import Container, VerticalScroll
 from textual.reactive import var
 from textual.widgets import Footer, Header, Static, ListItem, ListView
@@ -95,14 +96,14 @@ class Prism(App[None]):
 
     CSS_PATH = "css/prism.tcss"
     BINDINGS = [
-        ("f", "toggle_files", "Toggle Files"),
-        ("e", "edit_file", "Edit File"),
-        ("n", "next_item", "Next"),
-        ("j", "next_item", "Next"),
-        ("p", "prev_item", "Previous"),
-        ("k", "prev_item", "Previous"),
-        ("w", "toggle_wrap", "Toggle Wrap"),
-        ("q", "quit", "Quit"),
+        Binding("f", "toggle_files", "Toggle Files"),
+        Binding("e", "edit_file", "Edit File"),
+        Binding("n,j", "next_item", "Next Match", key_display="n|j|↓"),
+        Binding("p,k", "prev_item", "Previous Match", key_display="p|k|↑"),
+        Binding("right,i", "next_file", "Next File", show=True, key_display="→|i"),
+        Binding("left,u", "prev_file", "Previous File", key_display="←|u"),
+        Binding("w", "toggle_wrap", "Wrap"),
+        Binding("q", "quit", "Quit"),
     ]
     ENABLE_COMMAND_PALETTE = False
 
@@ -274,6 +275,50 @@ class Prism(App[None]):
         """Move to the previous item in the list."""
         list_view = self.query_one(ListView)
         list_view.action_cursor_up()
+
+    def action_next_file(self) -> None:
+        """Move to the next file in the list."""
+        list_view = self.query_one(ListView)
+        highlighted_item = list_view.highlighted_child
+        if not isinstance(highlighted_item, FileListItem):
+            return
+
+        current_file = highlighted_item.data.file
+        # Find the index of the first item with a different file after current
+        current_index = list_view.index
+        if current_index is None:
+            return
+        children = [
+            child for child in list_view.children if isinstance(child, FileListItem)
+        ]
+        for i, child in enumerate(children):
+            if i > current_index and child.data.file != current_file:
+                list_view.index = i
+                return
+
+    def action_prev_file(self) -> None:
+        """Move to the previous file in the list."""
+        list_view = self.query_one(ListView)
+        highlighted_item = list_view.highlighted_child
+        if not isinstance(highlighted_item, FileListItem):
+            return
+
+        current_file = highlighted_item.data.file
+        current_index = list_view.index
+        if current_index is None:
+            return
+        # Find the index of the last item with a different file before current
+        children = [
+            child for child in list_view.children if isinstance(child, FileListItem)
+        ]
+        last_different_index = None
+        for i, child in enumerate(children):
+            if i >= current_index:
+                break
+            if child.data.file != current_file:
+                last_different_index = i
+        if last_different_index is not None:
+            list_view.index = last_different_index
 
     def action_edit_file(self) -> None:
         """Edit the file."""
