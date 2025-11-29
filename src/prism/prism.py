@@ -26,6 +26,23 @@ MATCH_HIGHLIGHT_COLOR = "bright_white"
 MATCH_HIGHLIGHT_BGCOLOR = "orange4"
 
 
+def snip(string: str, length: int) -> str:
+    """Shorten a string to the specified length with ellipsis.
+
+    If the string is longer than length, inserts the unicode ellipsis character
+    (…) at 1/3 from the start and truncates from both sides.
+    """
+    if len(string) <= length:
+        return string
+    ellipsis = "…"
+    chars_to_show = length - len(ellipsis)
+    start_chars = chars_to_show // 3
+    end_chars = chars_to_show - start_chars
+    if start_chars > 0 and end_chars > 0:
+        return string[:start_chars] + ellipsis + string[-end_chars:]
+    return ellipsis
+
+
 @dataclasses.dataclass
 class FileData:
     file: Path
@@ -43,28 +60,19 @@ class FileListItem(ListItem):
         """Render the file list item as rich Text."""
         # First line: filename and line number
         text = Text()
-        text.append(self.data.file.name, style="bold")
+        # Account for line number suffix when snipping filename
+        line_num_str = f":{self.data.line_num}" if self.data.line_num else ""
+        available_width = self.size.width - len(line_num_str)
+        filename = snip(self.data.file.name, available_width)
+        text.append(filename, style="bold")
         if self.data.line_num:
-            text.append(f":{self.data.line_num}", style="green")
+            text.append(line_num_str, style="green")
 
         # Second line: parent directory path (if exists)
         if len(self.data.file.parts) > 1:
             text.append("\n")
             parent_path = f"{self.data.file.parent}/"
-            # Truncate path with middle ellipsis if needed
-            available_width = self.size.width
-            if len(parent_path) > available_width:
-                # Calculate how much to show from start and end
-                ellipsis = "…"
-                chars_to_show = available_width - len(ellipsis)
-                start_chars = chars_to_show // 2
-                end_chars = chars_to_show - start_chars
-                if start_chars > 0 and end_chars > 0:
-                    parent_path = (
-                        parent_path[:start_chars] + ellipsis + parent_path[-end_chars:]
-                    )
-                else:
-                    parent_path = ellipsis
+            parent_path = snip(parent_path, self.size.width)
             text.append(parent_path, style="dim italic")
 
         return text
@@ -116,9 +124,15 @@ class Prism(App[None]):
         """Compose our UI."""
 
         items = []
-        for i, file_data in enumerate(self.files):
+        current_path = None
+        color_class = "even"
+        for file_data in self.files:
+            # Alternate color when the file path changes
+            if file_data.file != current_path:
+                current_path = file_data.file
+                color_class = "odd" if color_class == "even" else "even"
             item = FileListItem(file_data)
-            item.add_class("odd" if i % 2 else "even")
+            item.add_class(color_class)
             items.append(item)
 
         yield Header(show_clock=False)
