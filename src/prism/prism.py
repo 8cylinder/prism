@@ -24,6 +24,8 @@ DEFAULT_TRACEBACK_THEME = "github-dark"
 SCROLL_OFFSET_RATIO = 3
 MATCH_HIGHLIGHT_COLOR = "bright_white"
 MATCH_HIGHLIGHT_BGCOLOR = "orange4"
+OTHER_MATCH_HIGHLIGHT_COLOR = "gray66"
+OTHER_MATCH_HIGHLIGHT_BGCOLOR = "gray23"
 VERTICAL_BAR_COLOR = "#304759"
 
 
@@ -194,16 +196,46 @@ class Prism(App[None]):
                 theme=DEFAULT_SYNTAX_THEME,
                 highlight_lines={line_num},
             )
-            line = syntax.code.splitlines()[line_num - 1]
-            match = re.search(re.escape(data.match_string), line)
-            if match:
-                pos = match.span()
-                # Store column position for editor (emacs uses 1-indexed columns)
-                data.column = pos[0] + 1
-                highlight = Style(
-                    color=MATCH_HIGHLIGHT_COLOR, bgcolor=MATCH_HIGHLIGHT_BGCOLOR
+
+            # Find all matches in the file and highlight them
+            if data.match_string:
+                escaped_pattern = re.escape(data.match_string)
+                lines = syntax.code.splitlines()
+
+                # First, highlight all non-current matches with a different color
+                other_match_style = Style(
+                    color=OTHER_MATCH_HIGHLIGHT_COLOR,
+                    bgcolor=OTHER_MATCH_HIGHLIGHT_BGCOLOR,
                 )
-                syntax.stylize_range(highlight, (line_num, pos[0]), (line_num, pos[1]))
+                for line_idx, line_text in enumerate(lines, start=1):
+                    for match in re.finditer(escaped_pattern, line_text):
+                        # Skip the first match on the current line (will be highlighted with primary color)
+                        if line_idx == line_num:
+                            # Only skip if this is the first match on the line
+                            # (to highlight the primary match)
+                            first_match = re.search(escaped_pattern, line_text)
+                            if first_match and match.span() == first_match.span():
+                                continue
+                        pos = match.span()
+                        syntax.stylize_range(
+                            other_match_style, (line_idx, pos[0]), (line_idx, pos[1])
+                        )
+
+                # Then highlight the current match with primary color
+                if line_num > 0 and line_num <= len(lines):
+                    line = lines[line_num - 1]
+                    current_match = re.search(escaped_pattern, line)
+                    if current_match:
+                        pos = current_match.span()
+                        # Store column position for editor (emacs uses 1-indexed columns)
+                        data.column = pos[0] + 1
+                        highlight = Style(
+                            color=MATCH_HIGHLIGHT_COLOR,
+                            bgcolor=MATCH_HIGHLIGHT_BGCOLOR,
+                        )
+                        syntax.stylize_range(
+                            highlight, (line_num, pos[0]), (line_num, pos[1])
+                        )
 
         except (OSError, UnicodeDecodeError, IndexError) as e:
             # OSError: file read errors
