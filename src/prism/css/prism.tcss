@@ -7,11 +7,17 @@ Header {
 }
 
 Header .header--title {
+  width: 100%;
+  text-align: center;
   color: $text;
   text-style: bold;
 }
 
 HeaderIcon {
+  display: none;
+}
+
+HeaderClockSpace {
   display: none;
 }
 
@@ -25,11 +31,11 @@ HeaderIcon {
 
 /* File list width states */
 .-files-narrow #file-list {
-  width: 20%;
+  width: 25%;
 }
 
 .-files-wide #file-list {
-  width: 80%;
+  width: 75%;
 }
 
 .-files-hidden #file-list {

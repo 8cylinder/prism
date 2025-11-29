@@ -50,7 +50,22 @@ class FileListItem(ListItem):
         # Second line: parent directory path (if exists)
         if len(self.data.file.parts) > 1:
             text.append("\n")
-            text.append(f"{self.data.file.parent}/", style="dim italic")
+            parent_path = f"{self.data.file.parent}/"
+            # Truncate path with middle ellipsis if needed
+            available_width = self.size.width
+            if len(parent_path) > available_width:
+                # Calculate how much to show from start and end
+                ellipsis = "…"
+                chars_to_show = available_width - len(ellipsis)
+                start_chars = chars_to_show // 2
+                end_chars = chars_to_show - start_chars
+                if start_chars > 0 and end_chars > 0:
+                    parent_path = (
+                        parent_path[:start_chars] + ellipsis + parent_path[-end_chars:]
+                    )
+                else:
+                    parent_path = ellipsis
+            text.append(parent_path, style="dim italic")
 
         return text
 
