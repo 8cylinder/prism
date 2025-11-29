@@ -1,6 +1,6 @@
 [project]
 name = "prism"
-version = "0.1.2"
+version = "1.0.0"
 description = "View files found with cli tools"
 readme = "README.md"
 authors = [
