@@ -52,7 +52,8 @@ FileListItem.odd {
 }
 
 FileListItem.even {
-  background: $primary-background-darken-1;
+  background: $primary-background-darken-2;
+  /* background: $primary-background-darken-1; */
 }
 
 FileListItem.selected {

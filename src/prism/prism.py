@@ -24,6 +24,7 @@ DEFAULT_TRACEBACK_THEME = "github-dark"
 SCROLL_OFFSET_RATIO = 3
 MATCH_HIGHLIGHT_COLOR = "bright_white"
 MATCH_HIGHLIGHT_BGCOLOR = "orange4"
+VERTICAL_BAR_COLOR = "#304759"
 
 
 def snip(string: str, length: int) -> str:
@@ -52,17 +53,23 @@ class FileData:
 
 
 class FileListItem(ListItem):
-    def __init__(self, file_data: FileData) -> None:
+    def __init__(self, file_data: FileData, is_last: bool = False) -> None:
         super().__init__()
         self.data = file_data
+        self.is_last = is_last
 
     def render(self) -> Text:
         """Render the file list item as rich Text."""
-        # First line: filename and line number
+        # First line: prefix + filename and line number
         text = Text()
-        # Account for line number suffix when snipping filename
+
+        # Always use full vertical bar for filename
+        prefix = "┃ "
+        text.append(prefix, style=VERTICAL_BAR_COLOR)
+
+        # Account for prefix and line number suffix when snipping filename
         line_num_str = f":{self.data.line_num}" if self.data.line_num else ""
-        available_width = self.size.width - len(line_num_str)
+        available_width = self.size.width - len(prefix) - len(line_num_str)
         filename = snip(self.data.file.name, available_width)
         text.append(filename, style="")
         if self.data.line_num:
@@ -71,8 +78,11 @@ class FileListItem(ListItem):
         # Second line: parent directory path (if exists)
         if len(self.data.file.parts) > 1:
             text.append("\n")
+            # Use short vertical bar for path on last item, full bar otherwise
+            path_prefix = "╹ " if self.is_last else "┃ "
+            text.append(path_prefix, style=VERTICAL_BAR_COLOR)
             parent_path = f"{self.data.file.parent}/"
-            parent_path = snip(parent_path, self.size.width)
+            parent_path = snip(parent_path, self.size.width - len(path_prefix))
             text.append(parent_path, style="dim italic")
 
         return text
@@ -123,15 +133,31 @@ class Prism(App[None]):
     def compose(self) -> ComposeResult:
         """Compose our UI."""
 
+        # Count occurrences per file to determine if an item is the last
+        from collections import Counter
+
+        file_counts = Counter(file_data.file for file_data in self.files)
+
         items = []
         current_path = None
         color_class = "even"
+        file_occurrence: dict[Path, int] = {}
+
         for file_data in self.files:
             # Alternate color when the file path changes
             if file_data.file != current_path:
                 current_path = file_data.file
                 color_class = "odd" if color_class == "even" else "even"
-            item = FileListItem(file_data)
+                file_occurrence[file_data.file] = 0
+
+            file_occurrence[file_data.file] += 1
+            total_count = file_counts[file_data.file]
+            current_count = file_occurrence[file_data.file]
+
+            # Determine if this is the last occurrence of this file
+            is_last = current_count == total_count
+
+            item = FileListItem(file_data, is_last)
             item.add_class(color_class)
             items.append(item)
 
