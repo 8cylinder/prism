@@ -12,6 +12,7 @@ from rich.traceback import Traceback
 from rich.style import Style
 from rich.text import Text
 from rich.markdown import Markdown
+import html2text
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -100,12 +101,12 @@ class Prism(App[None]):
     BINDINGS = [
         Binding("f", "toggle_files", "Toggle Files"),
         Binding("e", "edit_file", "Edit File"),
-        Binding("m", "toggle_view_mode", "View Mode"),
         Binding("n,j", "next_item", "Next Match", key_display="↓|n|j"),
         Binding("p,k", "prev_item", "Previous Match", key_display="↑|p|k"),
         Binding("right,i", "next_file", "Next File", show=True, key_display="→|i"),
         Binding("left,u", "prev_file", "Previous File", key_display="←|u"),
         Binding("w", "toggle_wrap", "Wrap"),
+        Binding("m", "toggle_view_mode", "Render"),
         Binding("q", "quit", "Quit"),
     ]
     ENABLE_COMMAND_PALETTE = False
@@ -203,13 +204,33 @@ class Prism(App[None]):
         line_num = data.line_num
         event.stop()
         code_view = self.query_one("#code", Static)
+
+        # Determine file type
+        is_markdown_file = data.file.suffix.lower() in {".md", ".markdown"}
+        is_html_file = data.file.suffix.lower() in {".html", ".htm", ".twig"}
+
+        # Determine if we should use rendered view
+        use_rendered_view = self.view_mode == "markdown" and (
+            is_markdown_file or is_html_file
+        )
+
         try:
-            if self.view_mode == "markdown":
-                # Render as markdown
+            if use_rendered_view:
                 with open(data.file, "r", encoding="utf-8") as f:
                     content = f.read()
-                markdown = Markdown(content)
-                code_view.update(markdown)
+
+                if is_html_file:
+                    # Convert HTML to Markdown, then render
+                    h = html2text.HTML2Text()
+                    h.ignore_links = False
+                    h.ignore_images = False
+                    markdown_content = h.handle(content)
+                    markdown = Markdown(markdown_content)
+                    code_view.update(markdown)
+                else:
+                    # Render as markdown
+                    markdown = Markdown(content)
+                    code_view.update(markdown)
             else:
                 # Render as source code
                 syntax = Syntax.from_path(

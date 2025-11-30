@@ -1,4 +1,3 @@
-
 import click
 import sys
 import os
@@ -58,6 +57,8 @@ def parse_filename(raw: str) -> FileData | None:
 CONTEXT_SETTINGS = {
     "help_option_names": ["-h", "--help"],
 }
+
+
 @click.command(context_settings=CONTEXT_SETTINGS)
 @click.argument("search_results", nargs=-1)
 @click.option(
@@ -90,7 +91,7 @@ def prism(search_results: tuple[str, ...], null: bool, debug_data: bool) -> None
     raw_input: str
     if search_results:
         pipe = search_results
-        raw_input = '\n'.join(pipe)
+        raw_input = "\n".join(pipe)
     elif sys.stdin.isatty():
         print("No input in pipe.")
         sys.exit(1)
