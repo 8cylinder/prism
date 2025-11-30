@@ -11,6 +11,7 @@ from rich.syntax import Syntax
 from rich.traceback import Traceback
 from rich.style import Style
 from rich.text import Text
+from rich.markdown import Markdown
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -20,6 +21,7 @@ from textual.widgets import Footer, Header, Static, ListItem, ListView
 
 # Constants
 FileListState = Literal["narrow", "wide", "hidden"]
+ViewMode = Literal["source", "markdown"]
 DEFAULT_SYNTAX_THEME = "github-dark"
 DEFAULT_TRACEBACK_THEME = "github-dark"
 SCROLL_OFFSET_RATIO = 3
@@ -98,6 +100,7 @@ class Prism(App[None]):
     BINDINGS = [
         Binding("f", "toggle_files", "Toggle Files"),
         Binding("e", "edit_file", "Edit File"),
+        Binding("m", "toggle_view_mode", "View Mode"),
         Binding("n,j", "next_item", "Next Match", key_display="↓|n|j"),
         Binding("p,k", "prev_item", "Previous Match", key_display="↑|p|k"),
         Binding("right,i", "next_file", "Next File", show=True, key_display="→|i"),
@@ -109,6 +112,7 @@ class Prism(App[None]):
 
     file_list_state: var[FileListState] = var("narrow")
     word_wrap: var[bool] = var(False)
+    view_mode: var[ViewMode] = var("source")
 
     def __init__(self, files: list[FileData]) -> None:
         self.files = files
@@ -124,6 +128,17 @@ class Prism(App[None]):
 
     def watch_word_wrap(self, new_wrap: bool) -> None:
         """Called when word_wrap is modified."""
+        # Refresh the current view
+        list_view = self.query_one(ListView)
+        if list_view.highlighted_child and isinstance(
+            list_view.highlighted_child, FileListItem
+        ):
+            self.on_list_view_highlighted(
+                ListView.Highlighted(list_view, list_view.highlighted_child)
+            )
+
+    def watch_view_mode(self, new_mode: ViewMode) -> None:
+        """Called when view_mode is modified."""
         # Refresh the current view
         list_view = self.query_one(ListView)
         if list_view.highlighted_child and isinstance(
@@ -189,54 +204,71 @@ class Prism(App[None]):
         event.stop()
         code_view = self.query_one("#code", Static)
         try:
-            syntax = Syntax.from_path(
-                str(data.file),
-                line_numbers=True,
-                word_wrap=self.word_wrap,
-                indent_guides=False,
-                theme=DEFAULT_SYNTAX_THEME,
-                highlight_lines={line_num},
-            )
-
-            # Find all matches in the file and highlight them
-            if data.match_string:
-                escaped_pattern = re.escape(data.match_string)
-                lines = syntax.code.splitlines()
-
-                # First, highlight all non-current matches with a different color
-                other_match_style = Style(
-                    color=OTHER_MATCH_HIGHLIGHT_COLOR,
-                    bgcolor=OTHER_MATCH_HIGHLIGHT_BGCOLOR,
+            if self.view_mode == "markdown":
+                # Render as markdown
+                with open(data.file, "r", encoding="utf-8") as f:
+                    content = f.read()
+                markdown = Markdown(content)
+                code_view.update(markdown)
+            else:
+                # Render as source code
+                syntax = Syntax.from_path(
+                    str(data.file),
+                    line_numbers=True,
+                    word_wrap=self.word_wrap,
+                    indent_guides=False,
+                    theme=DEFAULT_SYNTAX_THEME,
+                    highlight_lines={line_num},
                 )
-                for line_idx, line_text in enumerate(lines, start=1):
-                    for match in re.finditer(escaped_pattern, line_text):
-                        # Skip the first match on the current line (will be highlighted with primary color)
-                        if line_idx == line_num:
-                            # Only skip if this is the first match on the line
-                            # (to highlight the primary match)
-                            first_match = re.search(escaped_pattern, line_text)
-                            if first_match and match.span() == first_match.span():
-                                continue
-                        pos = match.span()
-                        syntax.stylize_range(
-                            other_match_style, (line_idx, pos[0]), (line_idx, pos[1])
-                        )
 
-                # Then highlight the current match with primary color
-                if line_num > 0 and line_num <= len(lines):
-                    line = lines[line_num - 1]
-                    current_match = re.search(escaped_pattern, line)
-                    if current_match:
-                        pos = current_match.span()
-                        # Store column position for editor (emacs uses 1-indexed columns)
-                        data.column = pos[0] + 1
-                        highlight = Style(
-                            color=MATCH_HIGHLIGHT_COLOR,
-                            bgcolor=MATCH_HIGHLIGHT_BGCOLOR,
-                        )
-                        syntax.stylize_range(
-                            highlight, (line_num, pos[0]), (line_num, pos[1])
-                        )
+                # Find all matches in the file and highlight them
+                if data.match_string:
+                    escaped_pattern = re.escape(data.match_string)
+                    lines = syntax.code.splitlines()
+
+                    # First, highlight all non-current matches with a different color
+                    other_match_style = Style(
+                        color=OTHER_MATCH_HIGHLIGHT_COLOR,
+                        bgcolor=OTHER_MATCH_HIGHLIGHT_BGCOLOR,
+                    )
+                    for line_idx, line_text in enumerate(lines, start=1):
+                        for match in re.finditer(escaped_pattern, line_text):
+                            # Skip the first match on the current line (will be highlighted with primary color)
+                            if line_idx == line_num:
+                                # Only skip if this is the first match on the line
+                                # (to highlight the primary match)
+                                first_match = re.search(escaped_pattern, line_text)
+                                if first_match and match.span() == first_match.span():
+                                    continue
+                            pos = match.span()
+                            syntax.stylize_range(
+                                other_match_style,
+                                (line_idx, pos[0]),
+                                (line_idx, pos[1]),
+                            )
+
+                    # Then highlight the current match with primary color
+                    if line_num > 0 and line_num <= len(lines):
+                        line = lines[line_num - 1]
+                        current_match = re.search(escaped_pattern, line)
+                        if current_match:
+                            pos = current_match.span()
+                            # Store column position for editor (emacs uses 1-indexed columns)
+                            data.column = pos[0] + 1
+                            highlight = Style(
+                                color=MATCH_HIGHLIGHT_COLOR,
+                                bgcolor=MATCH_HIGHLIGHT_BGCOLOR,
+                            )
+                            syntax.stylize_range(
+                                highlight, (line_num, pos[0]), (line_num, pos[1])
+                            )
+
+                code_view.update(syntax)
+                scroll_offset = self.size.height // SCROLL_OFFSET_RATIO
+                self.query_one("#code-view").scroll_to(
+                    y=int(line_num) - scroll_offset,
+                    animate=False,
+                )
 
         except (OSError, UnicodeDecodeError, IndexError) as e:
             # OSError: file read errors
@@ -245,12 +277,6 @@ class Prism(App[None]):
             code_view.update(Traceback(theme=DEFAULT_TRACEBACK_THEME, width=None))
             self.title = f"ERROR: {type(e).__name__}"
         else:
-            code_view.update(syntax)
-            scroll_offset = self.size.height // SCROLL_OFFSET_RATIO
-            self.query_one("#code-view").scroll_to(
-                y=int(line_num) - scroll_offset,
-                animate=False,
-            )
             self.title = str(data.file)
 
     def action_toggle_files(self) -> None:
@@ -265,6 +291,10 @@ class Prism(App[None]):
     def action_toggle_wrap(self) -> None:
         """Toggle word wrap in the code viewer."""
         self.word_wrap = not self.word_wrap
+
+    def action_toggle_view_mode(self) -> None:
+        """Toggle between source and markdown view."""
+        self.view_mode = "markdown" if self.view_mode == "source" else "source"
 
     def action_next_item(self) -> None:
         """Move to the next item in the list."""
