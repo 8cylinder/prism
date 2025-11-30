@@ -80,28 +80,25 @@ def prism(search_results: tuple[str, ...], null: bool, debug_data: bool) -> None
     rg 'search string' -t py --only-matching | prism
     rg 'search string' -o | prism
     grep 'search string' -Hn * | prism
+    find -iname '*py' | prism
+    find -path "**prism/*py" -print0 | prism --null
     find -iname "*py" -exec grep -Hn 'search string' {} \\; | prism
     find -iname "*py" -print0 | xargs --null grep --with-filename --line-number 'search string' | prism
-    find -path "**prism/*py" -print0 | prism --null
-
-    \b
-    While dev
-    ---------
-
-    \b
-    ... | uv run prism -h
-    ... | uv run textual run --dev prism:prism -h
+    find -iname '*py' | xargs grep -on 'search string' | prism
     """
 
     raw_input: str
     if search_results:
         pipe = search_results
-        pipe = '\n'.join(pipe)
+        raw_input = '\n'.join(pipe)
     elif sys.stdin.isatty():
         print("No input in pipe.")
         sys.exit(1)
     else:
         raw_input = sys.stdin.read()
+        if not raw_input:
+            print("No search results to show.")
+            sys.exit(1)
         # Reopen stdin from /dev/tty for Textual
         # https://github.com/Textualize/textual/issues/3831#issuecomment-2090349094
         try:

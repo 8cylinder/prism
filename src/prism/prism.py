@@ -98,8 +98,8 @@ class Prism(App[None]):
     BINDINGS = [
         Binding("f", "toggle_files", "Toggle Files"),
         Binding("e", "edit_file", "Edit File"),
-        Binding("n,j", "next_item", "Next Match", key_display="n|j|↓"),
-        Binding("p,k", "prev_item", "Previous Match", key_display="p|k|↑"),
+        Binding("n,j", "next_item", "Next Match", key_display="↓|n|j"),
+        Binding("p,k", "prev_item", "Previous Match", key_display="↑|p|k"),
         Binding("right,i", "next_file", "Next File", show=True, key_display="→|i"),
         Binding("left,u", "prev_file", "Previous File", key_display="←|u"),
         Binding("w", "toggle_wrap", "Wrap"),
@@ -108,7 +108,7 @@ class Prism(App[None]):
     ENABLE_COMMAND_PALETTE = False
 
     file_list_state: var[FileListState] = var("narrow")
-    word_wrap: var[bool] = var(True)
+    word_wrap: var[bool] = var(False)
 
     def __init__(self, files: list[FileData]) -> None:
         self.files = files
