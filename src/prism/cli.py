@@ -80,7 +80,8 @@ def prism(search_results: tuple[str, ...], null: bool, debug_data: bool) -> None
     -------------
 
     \b
-    rg 'search string' | prism
+    rg 'search string' --line-number | prism
+    rg 'search string' -n | prism
     rg 'search string' -t py --only-matching | prism
     rg 'search string' -o | prism
     grep 'search string' -Hn * | prism
