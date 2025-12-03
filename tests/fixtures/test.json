@@ -1,0 +1,26 @@
+{
+  "name": "Prism",
+  "version": "1.0.0",
+  "description": "TUI for viewing and navigating files",
+  "author": {
+    "name": "Test Author",
+    "email": "test@example.com"
+  },
+  "dependencies": [
+    "textual",
+    "rich",
+    "click"
+  ],
+  "features": {
+    "syntax_highlighting": true,
+    "markdown_rendering": true,
+    "csv_viewing": true,
+    "json_viewing": true
+  },
+  "stats": {
+    "lines_of_code": 1500,
+    "test_coverage": 95.5,
+    "last_updated": "2024-01-15"
+  },
+  "tags": ["tui", "viewer", "terminal", "python"]
+}

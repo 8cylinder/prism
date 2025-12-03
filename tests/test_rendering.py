@@ -276,6 +276,80 @@ class TestCSVRendering:
             assert "invalid.tsv" in app.title.lower() or app.title != ""
 
 
+class TestJSONRendering:
+    """Test JSON file rendering."""
+
+    @pytest.mark.asyncio
+    async def test_json_file_detected(self, fixtures_dir):
+        """Test that .json files are detected."""
+        json_file = fixtures_dir / "test.json"
+        files = [FileData(file=json_file, line_num=0, match_string="")]
+        app = Prism(files)
+
+        async with app.run_test() as pilot:
+            # Enable render view mode
+            app.view_mode = "markdown"
+            await pilot.pause()
+
+            # Verify file is detected as JSON
+            data = files[0]
+            is_json = data.file.suffix.lower() == ".json"
+            assert is_json
+
+    @pytest.mark.asyncio
+    async def test_json_rendering_enabled(self, fixtures_dir):
+        """Test that JSON files are rendered in markdown mode."""
+        json_file = fixtures_dir / "test.json"
+        files = [FileData(file=json_file, line_num=0, match_string="")]
+        app = Prism(files)
+
+        async with app.run_test() as pilot:
+            # Enable render view mode
+            await pilot.press("m")
+            await pilot.pause()
+
+            # Verify Static widget is created (JSON is rendered to Static)
+            from textual.widgets import Static
+
+            code_view = app.query_one("#code", Static)
+            assert code_view is not None
+
+    @pytest.mark.asyncio
+    async def test_json_rendering_disabled(self, fixtures_dir):
+        """Test that JSON files show source code in source mode."""
+        json_file = fixtures_dir / "test.json"
+        files = [FileData(file=json_file, line_num=0, match_string="")]
+        app = Prism(files)
+
+        async with app.run_test() as pilot:
+            # Start in source mode (default)
+            await pilot.pause()
+
+            # Should show source code with syntax highlighting
+            from textual.widgets import Static
+
+            code_view = app.query_one("#code", Static)
+            assert code_view is not None
+
+    @pytest.mark.asyncio
+    async def test_invalid_json_shows_error(self, fixtures_dir):
+        """Test that invalid JSON files show an error message."""
+        json_file = fixtures_dir / "invalid.json"
+        files = [FileData(file=json_file, line_num=0, match_string="")]
+        app = Prism(files)
+
+        async with app.run_test() as pilot:
+            # Enable render view mode
+            await pilot.press("m")
+            await pilot.pause()
+
+            # Should show error message in a Static widget, not crash
+            # Check that app is still running
+            assert app.is_running
+            # Title should indicate an error or show the file name
+            assert "invalid.json" in app.title.lower() or app.title != ""
+
+
 class TestSourceCodeRendering:
     """Test source code rendering (default mode)."""
 

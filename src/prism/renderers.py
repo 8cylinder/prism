@@ -9,9 +9,11 @@ from textual._node_list import DuplicateIds
 from rich.syntax import Syntax
 from rich.markdown import Markdown
 from rich.style import Style
+from rich.json import JSON
 import html2text
 import re
 import csv
+import json
 
 ViewMode = Literal["source", "markdown"]
 
@@ -161,6 +163,79 @@ class HTMLRenderer:
             container.mount(code_view)
             code_view.update(markdown)
         return code_view, 0
+
+
+class JSONRenderer:
+    """Renderer for JSON files (.json)."""
+
+    @staticmethod
+    def can_render(file_path: Path, view_mode: ViewMode) -> bool:
+        return view_mode == "markdown" and file_path.suffix.lower() == ".json"
+
+    @staticmethod
+    def render(
+        container: VerticalScroll,
+        file_path: Path,
+        line_num: int = 0,
+        match_string: str = "",
+        word_wrap: bool = False,
+        theme: str = "github-dark",
+        scroll_offset_ratio: int = 3,
+        match_highlight_color: str = "bright_white",
+        match_highlight_bgcolor: str = "orange4",
+        other_match_highlight_color: str = "gray66",
+        other_match_highlight_bgcolor: str = "gray23",
+    ) -> tuple[Static, int]:
+        """Render JSON file as formatted, syntax-highlighted JSON."""
+        from rich.text import Text
+
+        try:
+            # Read and parse JSON file
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            # Create rich JSON representation
+            json_renderable = JSON.from_data(data)
+
+            # Check if widget already exists, if so just update it
+            try:
+                code_view = container.query_one("#code", Static)
+                code_view.update(json_renderable)
+            except Exception:
+                # Widget doesn't exist or is wrong type - clear and create new one
+                for widget in list(container.children):
+                    widget.remove()
+                code_view = Static(id="code", expand=True)
+                container.mount(code_view)
+                code_view.update(json_renderable)
+
+            return code_view, 0
+
+        except json.JSONDecodeError as e:
+            # JSON parsing error - show user-friendly message
+            # Try to reuse existing Static widget with id='code' or create new one
+            try:
+                error_view = container.query_one("#code", Static)
+            except Exception:
+                # No Static widget exists - clean up and create new one
+                for widget in list(container.children):
+                    widget.remove()
+                error_view = Static(id="code", expand=True)
+                container.mount(error_view)
+
+            message = Text()
+            message.append("\n\n")
+            message.append("  Invalid JSON file  \n", style="bold red")
+            message.append("\n")
+            message.append(f"  {file_path.name}", style="dim")
+            message.append(" cannot be parsed as JSON.\n", style="dim")
+            message.append(
+                f"\n  Error at line {e.lineno}, column {e.colno}:\n", style="italic dim"
+            )
+            message.append(f"  {e.msg}\n", style="italic dim")
+            error_view.update(message)
+
+            return error_view, 0
 
 
 class TableRenderer:
@@ -352,8 +427,8 @@ class SourceCodeRenderer:
 RENDERERS: list[type[Renderer]] = [
     MarkdownRenderer,
     HTMLRenderer,
+    JSONRenderer,  # JSON files
     TableRenderer,  # CSV and TSV files
     # Future renderers go here:
-    # JSONRenderer,
     SourceCodeRenderer,  # Always last - fallback
 ]

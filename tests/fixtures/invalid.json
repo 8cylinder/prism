@@ -1,0 +1,6 @@
+{
+  "name": "Invalid JSON",
+  "missing_comma": "here"
+  "syntax_error": "this will fail to parse",
+  "unclosed_string: "oops
+}
