@@ -279,11 +279,33 @@ class Prism(App[None]):
                 # OSError: file read errors
                 # UnicodeDecodeError: binary files or encoding issues
                 # IndexError: line_num out of range
-                code_view = Static(id="code", expand=True)
-                code_view_container.mount(code_view)
-                code_view.update(Traceback(theme=DEFAULT_TRACEBACK_THEME, width=None))
-                # Store error for title update after _rendering flag is cleared
-                self._error_title: str | None = f"ERROR: {type(e).__name__}"
+
+                # Check if widget already exists, if so just update it
+                try:
+                    code_view = code_view_container.query_one("#code", Static)
+                except Exception:
+                    # Widget doesn't exist, create and mount it
+                    code_view = Static(id="code", expand=True)
+                    code_view_container.mount(code_view)
+
+                # Show user-friendly message for binary files, traceback for other errors
+                if isinstance(e, UnicodeDecodeError):
+                    message = Text()
+                    message.append("\n\n")
+                    message.append(
+                        "  This file cannot be displayed  \n", style="bold red"
+                    )
+                    message.append("\n")
+                    message.append(f"  {data.file.name}", style="dim")
+                    message.append(" appears to be a binary file.\n", style="dim")
+                    code_view.update(message)
+                    self._error_title: str | None = "Binary file"
+                else:
+                    code_view.update(
+                        Traceback(theme=DEFAULT_TRACEBACK_THEME, width=None)
+                    )
+                    # Store error for title update after _rendering flag is cleared
+                    self._error_title = f"ERROR: {type(e).__name__}"
             else:
                 self._error_title = None
         finally:

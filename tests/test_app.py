@@ -166,6 +166,24 @@ class TestPrismApp:
             await pilot.pause()
             # App should stop running
 
+    @pytest.mark.asyncio
+    async def test_binary_file_handling(self, fixtures_dir, tmp_path):
+        """Test that binary files display a user-friendly message."""
+        # Create a binary file with invalid UTF-8 bytes
+        binary_file = tmp_path / "test.bin"
+        binary_file.write_bytes(b"\xff\xfe\x00\x01\x02\x03\x04\x05")
+
+        files = [FileData(file=binary_file, line_num=0, match_string="")]
+        app = Prism(files)
+
+        async with app.run_test() as pilot:
+            await pilot.pause()  # Let app fully initialize
+
+            # The app should show a user-friendly message, not crash
+            assert app.is_running
+            # Title should indicate binary file
+            assert app.title == "Binary file"
+
 
 class TestFileListItem:
     """Test the FileListItem widget."""

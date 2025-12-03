@@ -180,6 +180,11 @@ class SourceCodeRenderer:
         other_match_highlight_bgcolor: str = "gray23",
     ) -> tuple[Static, int]:
         """Render source code with syntax highlighting."""
+        # Try to read the file first to detect binary files early
+        # This will raise UnicodeDecodeError for binary files
+        with open(file_path, "r", encoding="utf-8") as f:
+            _ = f.read(1)  # Read just one character to trigger encoding check
+
         # Render as source code (this may raise FileNotFoundError)
         syntax = Syntax.from_path(
             str(file_path),
