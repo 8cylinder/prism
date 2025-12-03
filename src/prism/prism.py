@@ -7,18 +7,16 @@ import subprocess
 import sys
 import shlex
 
-from rich.syntax import Syntax
 from rich.traceback import Traceback
-from rich.style import Style
 from rich.text import Text
-from rich.markdown import Markdown
-import html2text
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, VerticalScroll
 from textual.reactive import var
 from textual.widgets import Footer, Header, Static, ListItem, ListView
+
+from prism.renderers import RENDERERS
 
 # Constants
 FileListState = Literal["narrow", "wide", "hidden"]
@@ -117,6 +115,8 @@ class Prism(App[None]):
 
     def __init__(self, files: list[FileData]) -> None:
         self.files = files
+        self._rendering = False  # Flag to prevent re-entrant rendering
+        self._code_widget_counter = 0  # Counter for unique widget IDs
         super().__init__()
 
     def watch_file_list_state(self, new_state: FileListState) -> None:
@@ -129,7 +129,18 @@ class Prism(App[None]):
 
     def watch_word_wrap(self, new_wrap: bool) -> None:
         """Called when word_wrap is modified."""
-        # Refresh the current view
+        # Don't trigger during initial render
+        if getattr(self, "_rendering", False):
+            return
+
+        # Refresh the current view (only if fully initialized)
+        try:
+            code_view_container = self.query_one("#code-view", VerticalScroll)
+            if not code_view_container.is_mounted:
+                return
+        except Exception:
+            return  # Not ready yet
+
         list_view = self.query_one(ListView)
         if list_view.highlighted_child and isinstance(
             list_view.highlighted_child, FileListItem
@@ -140,7 +151,18 @@ class Prism(App[None]):
 
     def watch_view_mode(self, new_mode: ViewMode) -> None:
         """Called when view_mode is modified."""
-        # Refresh the current view
+        # Don't trigger during initial render
+        if getattr(self, "_rendering", False):
+            return
+
+        # Refresh the current view (only if fully initialized)
+        try:
+            code_view_container = self.query_one("#code-view", VerticalScroll)
+            if not code_view_container.is_mounted:
+                return
+        except Exception:
+            return  # Not ready yet
+
         list_view = self.query_one(ListView)
         if list_view.highlighted_child and isinstance(
             list_view.highlighted_child, FileListItem
@@ -183,8 +205,7 @@ class Prism(App[None]):
         yield Header(show_clock=False)
         with Container():
             yield ListView(*items, id="file-list")
-            with VerticalScroll(id="code-view"):
-                yield Static(id="code", expand=True)
+            yield VerticalScroll(id="code-view")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -195,110 +216,83 @@ class Prism(App[None]):
         if not isinstance(event.item, FileListItem):
             return
 
-        # Clear selection from all items and add to current item
-        for item in self.query(FileListItem):
-            item.remove_class("selected")
-        event.item.add_class("selected")
-
-        data = event.item.data
-        line_num = data.line_num
-        event.stop()
-        code_view = self.query_one("#code", Static)
-
-        # Determine file type
-        is_markdown_file = data.file.suffix.lower() in {".md", ".markdown"}
-        is_html_file = data.file.suffix.lower() in {".html", ".htm", ".twig"}
-
-        # Determine if we should use rendered view
-        use_rendered_view = self.view_mode == "markdown" and (
-            is_markdown_file or is_html_file
-        )
+        # Prevent re-entrant calls during rendering (atomic check-and-set)
+        if getattr(self, "_rendering", False):
+            return
+        self._rendering = True
 
         try:
-            if use_rendered_view:
-                with open(data.file, "r", encoding="utf-8") as f:
-                    content = f.read()
+            # Clear selection from all items and add to current item
+            for item in self.query(FileListItem):
+                item.remove_class("selected")
+            event.item.add_class("selected")
 
-                if is_html_file:
-                    # Convert HTML to Markdown, then render
-                    h = html2text.HTML2Text()
-                    h.ignore_links = False
-                    h.ignore_images = False
-                    markdown_content = h.handle(content)
-                    markdown = Markdown(markdown_content)
-                    code_view.update(markdown)
-                else:
-                    # Render as markdown
-                    markdown = Markdown(content)
-                    code_view.update(markdown)
+            data = event.item.data
+            event.stop()
+
+            # Get values from reactive variables BEFORE clearing widgets
+            # This prevents triggering watchers during widget manipulation
+            current_view_mode = self.view_mode
+            current_word_wrap = self.word_wrap
+
+            # Get the code-view container
+            code_view_container = self.query_one("#code-view", VerticalScroll)
+
+            try:
+                # Find the first renderer that can handle this file
+                for renderer in RENDERERS:
+                    if renderer.can_render(data.file, current_view_mode):
+                        # Render the file
+                        code_view, scroll_y = renderer.render(
+                            container=code_view_container,
+                            file_path=data.file,
+                            line_num=data.line_num,
+                            match_string=data.match_string,
+                            word_wrap=current_word_wrap,
+                            theme=DEFAULT_SYNTAX_THEME,
+                            scroll_offset_ratio=SCROLL_OFFSET_RATIO,
+                            match_highlight_color=MATCH_HIGHLIGHT_COLOR,
+                            match_highlight_bgcolor=MATCH_HIGHLIGHT_BGCOLOR,
+                            other_match_highlight_color=OTHER_MATCH_HIGHLIGHT_COLOR,
+                            other_match_highlight_bgcolor=OTHER_MATCH_HIGHLIGHT_BGCOLOR,
+                        )
+
+                        # Calculate column position for editor if we have a match
+                        if data.match_string and data.line_num > 0:
+                            with open(data.file, "r", encoding="utf-8") as f:
+                                lines = f.readlines()
+                                if data.line_num <= len(lines):
+                                    line = lines[data.line_num - 1]
+                                    escaped_pattern = re.escape(data.match_string)
+                                    match = re.search(escaped_pattern, line)
+                                    if match:
+                                        # Store column position for editor (emacs uses 1-indexed columns)
+                                        data.column = match.span()[0] + 1
+
+                        # Scroll to the appropriate position
+                        if scroll_y > 0:
+                            code_view_container.scroll_to(y=scroll_y, animate=False)
+
+                        break  # Stop after first matching renderer
+
+            except (OSError, UnicodeDecodeError, IndexError) as e:
+                # OSError: file read errors
+                # UnicodeDecodeError: binary files or encoding issues
+                # IndexError: line_num out of range
+                code_view = Static(id="code", expand=True)
+                code_view_container.mount(code_view)
+                code_view.update(Traceback(theme=DEFAULT_TRACEBACK_THEME, width=None))
+                # Store error for title update after _rendering flag is cleared
+                self._error_title: str | None = f"ERROR: {type(e).__name__}"
             else:
-                # Render as source code
-                syntax = Syntax.from_path(
-                    str(data.file),
-                    line_numbers=True,
-                    word_wrap=self.word_wrap,
-                    indent_guides=False,
-                    theme=DEFAULT_SYNTAX_THEME,
-                    highlight_lines={line_num},
-                )
-
-                # Find all matches in the file and highlight them
-                if data.match_string:
-                    escaped_pattern = re.escape(data.match_string)
-                    lines = syntax.code.splitlines()
-
-                    # First, highlight all non-current matches with a different color
-                    other_match_style = Style(
-                        color=OTHER_MATCH_HIGHLIGHT_COLOR,
-                        bgcolor=OTHER_MATCH_HIGHLIGHT_BGCOLOR,
-                    )
-                    for line_idx, line_text in enumerate(lines, start=1):
-                        for match in re.finditer(escaped_pattern, line_text):
-                            # Skip the first match on the current line (will be highlighted with primary color)
-                            if line_idx == line_num:
-                                # Only skip if this is the first match on the line
-                                # (to highlight the primary match)
-                                first_match = re.search(escaped_pattern, line_text)
-                                if first_match and match.span() == first_match.span():
-                                    continue
-                            pos = match.span()
-                            syntax.stylize_range(
-                                other_match_style,
-                                (line_idx, pos[0]),
-                                (line_idx, pos[1]),
-                            )
-
-                    # Then highlight the current match with primary color
-                    if line_num > 0 and line_num <= len(lines):
-                        line = lines[line_num - 1]
-                        current_match = re.search(escaped_pattern, line)
-                        if current_match:
-                            pos = current_match.span()
-                            # Store column position for editor (emacs uses 1-indexed columns)
-                            data.column = pos[0] + 1
-                            highlight = Style(
-                                color=MATCH_HIGHLIGHT_COLOR,
-                                bgcolor=MATCH_HIGHLIGHT_BGCOLOR,
-                            )
-                            syntax.stylize_range(
-                                highlight, (line_num, pos[0]), (line_num, pos[1])
-                            )
-
-                code_view.update(syntax)
-                scroll_offset = self.size.height // SCROLL_OFFSET_RATIO
-                self.query_one("#code-view").scroll_to(
-                    y=int(line_num) - scroll_offset,
-                    animate=False,
-                )
-
-        except (OSError, UnicodeDecodeError, IndexError) as e:
-            # OSError: file read errors
-            # UnicodeDecodeError: binary files or encoding issues
-            # IndexError: line_num out of range
-            code_view.update(Traceback(theme=DEFAULT_TRACEBACK_THEME, width=None))
-            self.title = f"ERROR: {type(e).__name__}"
-        else:
-            self.title = str(data.file)
+                self._error_title = None
+        finally:
+            self._rendering = False
+            # Set title after rendering flag is cleared to avoid triggering watchers
+            if hasattr(self, "_error_title") and self._error_title:
+                self.title = self._error_title
+            else:
+                self.title = str(data.file)
 
     def action_toggle_files(self) -> None:
         """Called in response to key binding. Cycles through narrow -> wide -> hidden."""

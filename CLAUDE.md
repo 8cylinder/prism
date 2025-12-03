@@ -21,6 +21,7 @@ left and syntax-highlighted file contents on the right.
 ## Coding standards
 - All code must have black run on it
 - Type checking with mypy must pass
+- All tests must pass with pytest
 - Follow Textual best practices: use CSS for styling, not hardcoded colors in Python
 
 ## Development Commands
@@ -43,6 +44,11 @@ uv run black src/
 
 # Type checking
 uv run mypy src/
+
+# Run tests
+uv run pytest              # Run all tests
+uv run pytest -v           # Verbose output
+uv run pytest tests/test_cli.py  # Run specific test file
 ```
 
 ## Architecture
@@ -142,4 +148,70 @@ src/prism/
 ├── prism.py             # Textual app and UI widgets
 └── css/
     └── prism.tcss       # Textual CSS styling
+
+tests/
+├── __init__.py          # Test package
+├── test_cli.py          # CLI parsing tests
+├── test_app.py          # App functionality tests
+├── test_rendering.py    # Rendering mode tests
+├── README.md            # Test documentation
+└── fixtures/            # Test fixture files
+    ├── test.md          # Markdown test file
+    ├── test.html        # HTML test file
+    ├── test.csv         # CSV test file
+    ├── test.tsv         # TSV test file
+    └── test.py          # Python test file
+```
+
+## Testing
+
+The project uses pytest for testing. Tests are organized by functionality:
+
+### Test Files
+- **test_cli.py** - Tests for CLI argument parsing and input handling
+  - Tests various input formats (plain paths, with line numbers, with match strings)
+  - Uses real fixture files to test file existence validation
+- **test_app.py** - Tests for the main Prism application
+  - App startup and initialization
+  - File list population and navigation
+  - Key bindings (toggle states, navigation, word wrap)
+  - FileData and FileListItem functionality
+- **test_rendering.py** - Tests for different rendering modes
+  - Markdown rendering (.md, .markdown files)
+  - HTML rendering (.html, .htm, .twig files)
+  - CSV/TSV rendering (marked as @pytest.mark.skip for future implementation)
+  - Source code syntax highlighting
+
+### Running Tests
+```bash
+# Run all tests
+uv run pytest
+
+# Run with verbose output
+uv run pytest -v
+
+# Run specific test file
+uv run pytest tests/test_rendering.py
+
+# Run specific test
+uv run pytest tests/test_cli.py::TestFilenameParsing::test_parse_plain_path
+```
+
+### Adding New Rendering Modes
+When adding a new rendering mode:
+1. Add test fixture files to `tests/fixtures/`
+2. Create test class in `tests/test_rendering.py`
+3. Initially mark tests with `@pytest.mark.skip(reason="Feature not yet implemented")`
+4. Implement the feature
+5. Remove the skip marker
+6. All tests should pass
+
+Example:
+```python
+@pytest.mark.skip(reason="JSON rendering not yet implemented")
+@pytest.mark.asyncio
+async def test_json_rendering(self, fixtures_dir):
+    """Test that JSON files are rendered."""
+    json_file = fixtures_dir / "test.json"
+    # Test implementation
 ```
