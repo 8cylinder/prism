@@ -1,0 +1,8 @@
+# TSV file with comments
+# Author: Test
+Name	Age	City	Occupation
+Alice	30	New York	Engineer
+# This person is from LA
+Bob	25	Los Angeles	Designer
+Charlie	35	Chicago	Manager
+# End of file

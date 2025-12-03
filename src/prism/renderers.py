@@ -2,7 +2,8 @@
 
 from pathlib import Path
 from typing import Protocol, Literal
-from textual.widgets import Static
+from textual.widget import Widget
+from textual.widgets import Static, DataTable
 from textual.containers import VerticalScroll
 from textual._node_list import DuplicateIds
 from rich.syntax import Syntax
@@ -10,6 +11,7 @@ from rich.markdown import Markdown
 from rich.style import Style
 import html2text
 import re
+import csv
 
 ViewMode = Literal["source", "markdown"]
 
@@ -43,7 +45,7 @@ class Renderer(Protocol):
         match_highlight_bgcolor: str = "orange4",
         other_match_highlight_color: str = "gray66",
         other_match_highlight_bgcolor: str = "gray23",
-    ) -> tuple[Static, int]:
+    ) -> tuple[Widget, int]:
         """Render the file to the container.
 
         Args:
@@ -99,12 +101,14 @@ class MarkdownRenderer:
         # Check if widget already exists, if so just update it
         try:
             code_view = container.query_one("#code", Static)
+            code_view.update(markdown)
         except Exception:
-            # Widget doesn't exist, create and mount it
+            # Widget doesn't exist or is wrong type - clear and create new one
+            for widget in list(container.children):
+                widget.remove()
             code_view = Static(id="code", expand=True)
             container.mount(code_view)
-
-        code_view.update(markdown)
+            code_view.update(markdown)
         return code_view, 0
 
 
@@ -148,13 +152,99 @@ class HTMLRenderer:
         # Check if widget already exists, if so just update it
         try:
             code_view = container.query_one("#code", Static)
+            code_view.update(markdown)
         except Exception:
-            # Widget doesn't exist, create and mount it
+            # Widget doesn't exist or is wrong type - clear and create new one
+            for widget in list(container.children):
+                widget.remove()
             code_view = Static(id="code", expand=True)
             container.mount(code_view)
-
-        code_view.update(markdown)
+            code_view.update(markdown)
         return code_view, 0
+
+
+class TableRenderer:
+    """Renderer for CSV and TSV files (.csv, .tsv)."""
+
+    @staticmethod
+    def can_render(file_path: Path, view_mode: ViewMode) -> bool:
+        return view_mode == "markdown" and file_path.suffix.lower() in {".csv", ".tsv"}
+
+    @staticmethod
+    def render(
+        container: VerticalScroll,
+        file_path: Path,
+        line_num: int = 0,
+        match_string: str = "",
+        word_wrap: bool = False,
+        theme: str = "github-dark",
+        scroll_offset_ratio: int = 3,
+        match_highlight_color: str = "bright_white",
+        match_highlight_bgcolor: str = "orange4",
+        other_match_highlight_color: str = "gray66",
+        other_match_highlight_bgcolor: str = "gray23",
+    ) -> tuple[DataTable | Static, int]:
+        """Render CSV/TSV file as a DataTable."""
+        from rich.text import Text
+
+        # Determine delimiter based on file extension
+        delimiter = "\t" if file_path.suffix.lower() == ".tsv" else ","
+        file_type = "TSV" if file_path.suffix.lower() == ".tsv" else "CSV"
+
+        try:
+            # Read file with appropriate delimiter, filtering out comment lines
+            with open(file_path, "r", encoding="utf-8") as f:
+                # Filter out lines starting with '#' (comments)
+                lines = [line for line in f if not line.strip().startswith("#")]
+                reader = csv.reader(lines, delimiter=delimiter)
+                rows = list(reader)
+
+            # Check if we can reuse existing DataTable, otherwise clear and create new
+            try:
+                table = container.query_one(DataTable)
+                table.clear()
+            except Exception:
+                # Widget doesn't exist or container has wrong type - clear and create new
+                for widget in list(container.children):
+                    widget.remove()
+                table = DataTable(zebra_stripes=True)
+                container.mount(table)
+
+            if rows:
+                # First row is headers
+                headers = rows[0]
+                table.add_columns(*headers)
+
+                # Add remaining rows
+                for row in rows[1:]:
+                    table.add_row(*row)
+
+            return table, 0
+
+        except (ValueError, csv.Error) as e:
+            # CSV parsing error - show user-friendly message
+            # Try to reuse existing Static widget with id='code' or create new one
+            try:
+                error_view = container.query_one("#code", Static)
+            except Exception:
+                # No Static widget exists - clean up and create new one
+                for widget in list(container.children):
+                    widget.remove()
+                error_view = Static(id="code", expand=True)
+                container.mount(error_view)
+
+            message = Text()
+            message.append("\n\n")
+            message.append(f"  Invalid {file_type} file  \n", style="bold red")
+            message.append("\n")
+            message.append(f"  {file_path.name}", style="dim")
+            message.append(
+                f" cannot be displayed as a {file_type} table.\n", style="dim"
+            )
+            message.append(f"\n  Error: {str(e)}\n", style="italic dim")
+            error_view.update(message)
+
+            return error_view, 0
 
 
 class SourceCodeRenderer:
@@ -199,7 +289,9 @@ class SourceCodeRenderer:
         try:
             code_view = container.query_one("#code", Static)
         except Exception:
-            # Widget doesn't exist, create and mount it
+            # Widget doesn't exist or is wrong type - clear and create new one
+            for widget in list(container.children):
+                widget.remove()
             code_view = Static(id="code", expand=True)
             container.mount(code_view)
 
@@ -260,9 +352,8 @@ class SourceCodeRenderer:
 RENDERERS: list[type[Renderer]] = [
     MarkdownRenderer,
     HTMLRenderer,
+    TableRenderer,  # CSV and TSV files
     # Future renderers go here:
-    # CSVRenderer,
-    # TSVRenderer,
     # JSONRenderer,
     SourceCodeRenderer,  # Always last - fallback
 ]

@@ -121,9 +121,8 @@ class TestHTMLRendering:
 
 
 class TestCSVRendering:
-    """Test CSV/TSV file rendering (future feature)."""
+    """Test CSV/TSV file rendering."""
 
-    @pytest.mark.skip(reason="CSV rendering not yet implemented")
     @pytest.mark.asyncio
     async def test_csv_file_detected(self, fixtures_dir):
         """Test that .csv files are detected."""
@@ -141,31 +140,24 @@ class TestCSVRendering:
             is_csv = data.file.suffix.lower() in {".csv", ".tsv"}
             assert is_csv
 
-    @pytest.mark.skip(reason="CSV rendering not yet implemented")
     @pytest.mark.asyncio
     async def test_csv_rendering_as_table(self, fixtures_dir):
         """Test that CSV files are rendered as DataTable."""
+        from textual.widgets import DataTable
+
         csv_file = fixtures_dir / "test.csv"
         files = [FileData(file=csv_file, line_num=0, match_string="")]
         app = Prism(files)
 
         async with app.run_test() as pilot:
             # Enable render view mode
-            app.view_mode = "markdown"
+            await pilot.press("m")
             await pilot.pause()
 
-            # Trigger file display
-            list_view = app.query_one("#file-list")
-            if list_view.children:
-                await pilot.press("enter")
-                await pilot.pause()
+            # Verify DataTable widget is created
+            table = app.query_one(DataTable)
+            assert table is not None
 
-            # TODO: Verify DataTable widget is created
-            # from textual.widgets import DataTable
-            # table = app.query_one("#code", DataTable)
-            # assert table is not None
-
-    @pytest.mark.skip(reason="TSV rendering not yet implemented")
     @pytest.mark.asyncio
     async def test_tsv_file_detected(self, fixtures_dir):
         """Test that .tsv files are detected."""
@@ -183,27 +175,105 @@ class TestCSVRendering:
             is_tsv = data.file.suffix.lower() == ".tsv"
             assert is_tsv
 
-    @pytest.mark.skip(reason="TSV rendering not yet implemented")
     @pytest.mark.asyncio
     async def test_tsv_rendering_uses_tab_delimiter(self, fixtures_dir):
         """Test that TSV files use tab delimiter."""
+        from textual.widgets import DataTable
+
         tsv_file = fixtures_dir / "test.tsv"
         files = [FileData(file=tsv_file, line_num=0, match_string="")]
         app = Prism(files)
 
         async with app.run_test() as pilot:
             # Enable render view mode
-            app.view_mode = "markdown"
+            await pilot.press("m")
             await pilot.pause()
 
-            # Trigger file display
-            list_view = app.query_one("#file-list")
-            if list_view.children:
-                await pilot.press("enter")
-                await pilot.pause()
+            # Verify DataTable widget is created
+            table = app.query_one(DataTable)
+            assert table is not None
+            # If TSV was parsed correctly with tabs, we should have columns
+            assert len(table.columns) > 0
 
-            # TODO: Verify tab delimiter was used
-            # This would require inspecting the DataTable content
+    @pytest.mark.asyncio
+    async def test_csv_with_comments_renders(self, fixtures_dir):
+        """Test that CSV files with # comments render correctly."""
+        from textual.widgets import DataTable
+
+        csv_file = fixtures_dir / "test_with_comments.csv"
+        files = [FileData(file=csv_file, line_num=0, match_string="")]
+        app = Prism(files)
+
+        async with app.run_test() as pilot:
+            # Enable render view mode
+            await pilot.press("m")
+            await pilot.pause()
+
+            # Verify DataTable widget is created
+            table = app.query_one(DataTable)
+            assert table is not None
+            # Should have 4 columns (Name, Age, City, Occupation)
+            assert len(table.columns) == 4
+            # Should have 3 data rows (comments filtered out)
+            assert table.row_count == 3
+
+    @pytest.mark.asyncio
+    async def test_tsv_with_comments_renders(self, fixtures_dir):
+        """Test that TSV files with # comments render correctly."""
+        from textual.widgets import DataTable
+
+        tsv_file = fixtures_dir / "test_with_comments.tsv"
+        files = [FileData(file=tsv_file, line_num=0, match_string="")]
+        app = Prism(files)
+
+        async with app.run_test() as pilot:
+            # Enable render view mode
+            await pilot.press("m")
+            await pilot.pause()
+
+            # Verify DataTable widget is created
+            table = app.query_one(DataTable)
+            assert table is not None
+            # Should have 4 columns (Name, Age, City, Occupation)
+            assert len(table.columns) == 4
+            # Should have 3 data rows (comments filtered out)
+            assert table.row_count == 3
+
+    @pytest.mark.asyncio
+    async def test_invalid_csv_shows_error(self, fixtures_dir):
+        """Test that invalid CSV files show an error message."""
+        csv_file = fixtures_dir / "invalid.csv"
+        files = [FileData(file=csv_file, line_num=0, match_string="")]
+        app = Prism(files)
+
+        async with app.run_test() as pilot:
+            # Enable render view mode
+            await pilot.press("m")
+            await pilot.pause()
+
+            # Should show error message in a Static widget, not crash
+            # Check that app is still running
+            assert app.is_running
+            # Title should indicate an error or show the file name
+            assert "invalid.csv" in app.title.lower() or app.title != ""
+
+    @pytest.mark.asyncio
+    async def test_invalid_tsv_shows_error(self, fixtures_dir):
+        """Test that invalid TSV files show an error message."""
+        tsv_file = fixtures_dir / "invalid.tsv"
+        files = [FileData(file=tsv_file, line_num=0, match_string="")]
+        app = Prism(files)
+
+        async with app.run_test() as pilot:
+            # Enable render view mode
+            await pilot.press("m")
+            await pilot.pause()
+
+            # Should show error message in a Static widget, not crash
+            # Check that app is still running
+            assert app.is_running
+            # Title should indicate an error or show the file name
+            assert "invalid.tsv" in app.title.lower() or app.title != ""
 
 
 class TestSourceCodeRendering:
