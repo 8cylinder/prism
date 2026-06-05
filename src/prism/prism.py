@@ -386,18 +386,22 @@ class Prism(App[None]):
         current_index = list_view.index
         if current_index is None:
             return
-        # Find the index of the last item with a different file before current
         children = [
             child for child in list_view.children if isinstance(child, FileListItem)
         ]
-        last_different_index = None
-        for i, child in enumerate(children):
-            if i >= current_index:
+        # Scan backward to find the file group immediately before the current one
+        prev_file = None
+        for i in range(current_index - 1, -1, -1):
+            if children[i].data.file != current_file:
+                prev_file = children[i].data.file
                 break
-            if child.data.file != current_file:
-                last_different_index = i
-        if last_different_index is not None:
-            list_view.index = last_different_index
+        if prev_file is None:
+            return
+        # Jump to the first occurrence of that file
+        for i, child in enumerate(children):
+            if child.data.file == prev_file:
+                list_view.index = i
+                return
 
     def action_edit_file(self) -> None:
         """Edit the file."""
