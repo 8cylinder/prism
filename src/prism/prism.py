@@ -242,16 +242,14 @@ class Prism(App[None]):
                 # Find the first renderer that can handle this file
                 for renderer in RENDERERS:
                     if renderer.can_render(data.file, current_view_mode):
-                        # Collect line numbers of other list entries for the same file
-                        other_line_nums = sorted(
-                            {
-                                fd.line_num
-                                for fd in self.files
-                                if fd.file == data.file
-                                and fd.line_num != data.line_num
-                                and fd.line_num > 0
-                            }
-                        )
+                        # Collect (line_num, match_string) for other entries in this file
+                        other_matches = [
+                            (fd.line_num, fd.match_string)
+                            for fd in self.files
+                            if fd.file == data.file
+                            and fd.line_num != data.line_num
+                            and fd.line_num > 0
+                        ]
 
                         # Render the file
                         code_view, scroll_y = renderer.render(
@@ -266,7 +264,7 @@ class Prism(App[None]):
                             match_highlight_bgcolor=MATCH_HIGHLIGHT_BGCOLOR,
                             other_match_highlight_color=OTHER_MATCH_HIGHLIGHT_COLOR,
                             other_match_highlight_bgcolor=OTHER_MATCH_HIGHLIGHT_BGCOLOR,
-                            other_line_nums=other_line_nums,
+                            other_matches=other_matches,
                         )
 
                         # Calculate column position for editor if we have a match
@@ -282,8 +280,10 @@ class Prism(App[None]):
                                         data.column = match.span()[0] + 1
 
                         # Scroll to the appropriate position
-                        if scroll_y > 0:
-                            code_view_container.scroll_to(y=scroll_y, animate=False)
+                        if data.line_num > 0:
+                            code_view_container.scroll_to(
+                                y=max(0, scroll_y), animate=False
+                            )
 
                         break  # Stop after first matching renderer
 

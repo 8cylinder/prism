@@ -47,7 +47,7 @@ class Renderer(Protocol):
         match_highlight_bgcolor: str = "orange4",
         other_match_highlight_color: str = "gray66",
         other_match_highlight_bgcolor: str = "gray23",
-        other_line_nums: list[int] | None = None,
+        other_matches: list[tuple[int, str]] | None = None,
     ) -> tuple[Widget, int]:
         """Render the file to the container.
 
@@ -63,7 +63,7 @@ class Renderer(Protocol):
             match_highlight_bgcolor: Background color for current match
             other_match_highlight_color: Color for other matches
             other_match_highlight_bgcolor: Background color for other matches
-            other_line_nums: Line numbers of other file list entries for the same file
+            other_matches: (line_num, match_string) pairs for other entries pointing to this file
 
         Returns:
             Tuple of (widget created, scroll position)
@@ -94,7 +94,7 @@ class MarkdownRenderer:
         match_highlight_bgcolor: str = "orange4",
         other_match_highlight_color: str = "gray66",
         other_match_highlight_bgcolor: str = "gray23",
-        other_line_nums: list[int] | None = None,
+        other_matches: list[tuple[int, str]] | None = None,
     ) -> tuple[Static, int]:
         """Render Markdown file as formatted markdown."""
         # Read file first (may raise OSError/UnicodeDecodeError)
@@ -141,7 +141,7 @@ class HTMLRenderer:
         match_highlight_bgcolor: str = "orange4",
         other_match_highlight_color: str = "gray66",
         other_match_highlight_bgcolor: str = "gray23",
-        other_line_nums: list[int] | None = None,
+        other_matches: list[tuple[int, str]] | None = None,
     ) -> tuple[Static, int]:
         """Render HTML file by converting to Markdown."""
         # Read file first (may raise OSError/UnicodeDecodeError)
@@ -189,7 +189,7 @@ class JSONRenderer:
         match_highlight_bgcolor: str = "orange4",
         other_match_highlight_color: str = "gray66",
         other_match_highlight_bgcolor: str = "gray23",
-        other_line_nums: list[int] | None = None,
+        other_matches: list[tuple[int, str]] | None = None,
     ) -> tuple[Static, int]:
         """Render JSON file as formatted, syntax-highlighted JSON."""
         from rich.text import Text
@@ -263,7 +263,7 @@ class TableRenderer:
         match_highlight_bgcolor: str = "orange4",
         other_match_highlight_color: str = "gray66",
         other_match_highlight_bgcolor: str = "gray23",
-        other_line_nums: list[int] | None = None,
+        other_matches: list[tuple[int, str]] | None = None,
     ) -> tuple[DataTable | Static, int]:
         """Render CSV/TSV file as a DataTable."""
         from rich.text import Text
@@ -349,7 +349,7 @@ class SourceCodeRenderer:
         match_highlight_bgcolor: str = "orange4",
         other_match_highlight_color: str = "gray66",
         other_match_highlight_bgcolor: str = "gray23",
-        other_line_nums: list[int] | None = None,
+        other_matches: list[tuple[int, str]] | None = None,
     ) -> tuple[Static, int]:
         """Render source code with syntax highlighting."""
         # Try to read the file first to detect binary files early
@@ -379,16 +379,23 @@ class SourceCodeRenderer:
 
         lines = syntax.code.splitlines()
 
-        # Highlight other file list entries for this file with a subtle line background
-        if other_line_nums:
-            other_line_style = Style(bgcolor=other_match_highlight_bgcolor)
-            for other_line in other_line_nums:
+        # Highlight other file list entries with the same style as the active match
+        if other_matches:
+            other_style = Style(bgcolor=other_match_highlight_bgcolor)
+            for other_line, other_match_str in other_matches:
                 if 0 < other_line <= len(lines):
                     line_text = lines[other_line - 1]
+                    if other_match_str:
+                        m = re.search(re.escape(other_match_str), line_text)
+                        if m:
+                            pos = m.span()
+                            syntax.stylize_range(
+                                other_style, (other_line, pos[0]), (other_line, pos[1])
+                            )
+                            continue
+                    # Fallback: no match string or not found — highlight whole line
                     syntax.stylize_range(
-                        other_line_style,
-                        (other_line, 0),
-                        (other_line, len(line_text)),
+                        other_style, (other_line, 0), (other_line, len(line_text))
                     )
 
         # Highlight the match text on the current line with primary color
