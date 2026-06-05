@@ -26,8 +26,8 @@ DEFAULT_TRACEBACK_THEME = "github-dark"
 SCROLL_OFFSET_RATIO = 3
 MATCH_HIGHLIGHT_COLOR = "bright_white"
 MATCH_HIGHLIGHT_BGCOLOR = "orange4"
-OTHER_MATCH_HIGHLIGHT_COLOR = "gray66"
-OTHER_MATCH_HIGHLIGHT_BGCOLOR = "gray23"
+OTHER_MATCH_HIGHLIGHT_COLOR = "orange3"
+OTHER_MATCH_HIGHLIGHT_BGCOLOR = "#3d2b00"
 VERTICAL_BAR_COLOR = "#304759"
 
 
@@ -242,6 +242,17 @@ class Prism(App[None]):
                 # Find the first renderer that can handle this file
                 for renderer in RENDERERS:
                     if renderer.can_render(data.file, current_view_mode):
+                        # Collect line numbers of other list entries for the same file
+                        other_line_nums = sorted(
+                            {
+                                fd.line_num
+                                for fd in self.files
+                                if fd.file == data.file
+                                and fd.line_num != data.line_num
+                                and fd.line_num > 0
+                            }
+                        )
+
                         # Render the file
                         code_view, scroll_y = renderer.render(
                             container=code_view_container,
@@ -255,6 +266,7 @@ class Prism(App[None]):
                             match_highlight_bgcolor=MATCH_HIGHLIGHT_BGCOLOR,
                             other_match_highlight_color=OTHER_MATCH_HIGHLIGHT_COLOR,
                             other_match_highlight_bgcolor=OTHER_MATCH_HIGHLIGHT_BGCOLOR,
+                            other_line_nums=other_line_nums,
                         )
 
                         # Calculate column position for editor if we have a match
