@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import dataclasses
 import re
 from typing import Literal
@@ -23,6 +24,50 @@ FileListState = Literal["narrow", "wide", "hidden"]
 ViewMode = Literal["source", "markdown"]
 DEFAULT_SYNTAX_THEME = "github-dark"
 DEFAULT_TRACEBACK_THEME = "github-dark"
+
+DEFAULT_BINDINGS = [
+    Binding("f", "toggle_files", "Toggle Files"),
+    Binding("e", "edit_file", "Edit File"),
+    Binding("n,j", "next_item", "Next Match", key_display="↓|n|j"),
+    Binding("p,k", "prev_item", "Previous Match", key_display="↑|p|k"),
+    Binding("right,i", "next_file", "Next File", show=True, key_display="→|i"),
+    Binding("left,u", "prev_file", "Previous File", key_display="←|u"),
+    Binding("w", "toggle_wrap", "Wrap"),
+    Binding("m", "toggle_view_mode", "Render"),
+    Binding("q", "quit", "Quit"),
+]
+
+
+def load_keybindings(config_path: Path | str | None = None) -> list[Binding]:
+    """Load keybindings from JSON file with fallback to defaults."""
+    paths_to_check: list[Path] = []
+    if config_path:
+        paths_to_check.append(Path(config_path))
+
+    paths_to_check.append(Path.home() / ".config" / "prism" / "shortcuts.json")
+    paths_to_check.append(Path(__file__).parent / "shortcuts.json")
+
+    for path in paths_to_check:
+        if path.is_file():
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    raw_data = json.load(f)
+                bindings = []
+                for item in raw_data:
+                    bindings.append(
+                        Binding(
+                            key=item["key"],
+                            action=item["action"],
+                            description=item["description"],
+                            show=item.get("show", True),
+                            key_display=item.get("key_display"),
+                        )
+                    )
+                return bindings
+            except Exception:
+                continue
+
+    return DEFAULT_BINDINGS
 SCROLL_OFFSET_RATIO = 3
 MATCH_HIGHLIGHT_COLOR = "bright_white"
 MATCH_HIGHLIGHT_BGCOLOR = "orange4"
@@ -96,27 +141,21 @@ class Prism(App[None]):
     """View files found."""
 
     CSS_PATH = "css/prism.tcss"
-    BINDINGS = [
-        Binding("f", "toggle_files", "Toggle Files"),
-        Binding("e", "edit_file", "Edit File"),
-        Binding("n,j", "next_item", "Next Match", key_display="↓|n|j"),
-        Binding("p,k", "prev_item", "Previous Match", key_display="↑|p|k"),
-        Binding("right,i", "next_file", "Next File", show=True, key_display="→|i"),
-        Binding("left,u", "prev_file", "Previous File", key_display="←|u"),
-        Binding("w", "toggle_wrap", "Wrap"),
-        Binding("m", "toggle_view_mode", "Render"),
-        Binding("q", "quit", "Quit"),
-    ]
+    BINDINGS = load_keybindings()
     ENABLE_COMMAND_PALETTE = False
 
     file_list_state: var[FileListState] = var("narrow")
     word_wrap: var[bool] = var(False)
     view_mode: var[ViewMode] = var("source")
 
-    def __init__(self, files: list[FileData]) -> None:
+    def __init__(
+        self, files: list[FileData], config_path: Path | str | None = None
+    ) -> None:
         self.files = files
         self._rendering = False  # Flag to prevent re-entrant rendering
         self._code_widget_counter = 0  # Counter for unique widget IDs
+        if config_path is not None:
+            self.BINDINGS = load_keybindings(config_path)
         super().__init__()
 
     def watch_file_list_state(self, new_state: FileListState) -> None:

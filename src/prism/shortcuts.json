@@ -1,0 +1,11 @@
+[
+  { "key": "f", "action": "toggle_files", "description": "Toggle Files" },
+  { "key": "e", "action": "edit_file", "description": "Edit File" },
+  { "key": "n,j", "action": "next_item", "description": "Next Match", "key_display": "↓|n|j" },
+  { "key": "p,k", "action": "prev_item", "description": "Previous Match", "key_display": "↑|p|k" },
+  { "key": "right,i", "action": "next_file", "description": "Next File", "show": true, "key_display": "→|i" },
+  { "key": "left,u", "action": "prev_file", "description": "Previous File", "key_display": "←|u" },
+  { "key": "w", "action": "toggle_wrap", "description": "Wrap" },
+  { "key": "r", "action": "toggle_view_mode", "description": "Render" },
+  { "key": "q", "action": "quit", "description": "Quit" }
+]

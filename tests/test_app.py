@@ -1,8 +1,9 @@
 """Tests for the Prism TUI application."""
 
+import json
 from pathlib import Path
 import pytest
-from prism.prism import Prism, FileData, FileListItem
+from prism.prism import Prism, FileData, FileListItem, load_keybindings, DEFAULT_BINDINGS
 
 
 @pytest.fixture
@@ -225,3 +226,40 @@ class TestFileData:
         )
 
         assert file_data.column == 10
+
+
+class TestKeybindings:
+    """Test JSON keybindings loading and fallback logic."""
+
+    def test_load_default_keybindings(self):
+        """Test loading default keybindings from package JSON or defaults."""
+        bindings = load_keybindings()
+        assert len(bindings) > 0
+        actions = [b.action for b in bindings]
+        assert "toggle_files" in actions
+        assert "edit_file" in actions
+
+    def test_load_custom_json_keybindings(self, tmp_path):
+        """Test loading keybindings from a custom JSON file."""
+        custom_json = tmp_path / "shortcuts.json"
+        custom_json.write_text(
+            json.dumps(
+                [
+                    {"key": "x", "action": "toggle_files", "description": "Custom Toggle"},
+                    {"key": "y", "action": "quit", "description": "Custom Quit"},
+                ]
+            )
+        )
+        bindings = load_keybindings(custom_json)
+        assert len(bindings) == 2
+        assert bindings[0].key == "x"
+        assert bindings[0].action == "toggle_files"
+        assert bindings[1].key == "y"
+        assert bindings[1].action == "quit"
+
+    def test_invalid_json_fallback(self, tmp_path):
+        """Test falling back to default bindings when JSON is invalid."""
+        invalid_json = tmp_path / "invalid.json"
+        invalid_json.write_text("{ invalid json ... }")
+        bindings = load_keybindings(invalid_json)
+        assert bindings == DEFAULT_BINDINGS
