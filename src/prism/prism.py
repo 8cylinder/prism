@@ -248,6 +248,7 @@ class Prism(App[None]):
         yield Footer()
 
     def on_mount(self) -> None:
+        self.animation_level = "none"
         self.query_one(ListView).focus()
         self.title = ""
 

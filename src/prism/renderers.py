@@ -414,6 +414,9 @@ class OrgRenderer:
 
             content = result.stdout.decode("utf-8")
 
+            # Strip anchor tags that Emacs adds before headings
+            content = re.sub(r'<a id="[^"]*"></a>\n*', "", content)
+
             # Emacs exports org tables as HTML — convert them to markdown tables
             def _html_table_to_markdown(match: re.Match[str]) -> str:
                 h = html2text.HTML2Text()
