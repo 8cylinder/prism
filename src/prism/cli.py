@@ -41,6 +41,9 @@ def parse_filename(raw: str) -> FileData | None:
     if filename.is_dir():
         click.echo(f'Skipping directory: "{filename}"', err=True)
         return None
+    elif filename.is_symlink() and not filename.exists():
+        click.echo(f'Skipping broken symlink: "{filename}"', err=True)
+        return None
     elif not filename.exists():
         raise click.BadParameter(f"Path '{file_data[0]}' does not exist.")
 
