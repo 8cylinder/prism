@@ -328,6 +328,120 @@ class TableRenderer:
             return error_view, 0
 
 
+class OrgRenderer:
+    """Renderer for Emacs Org files (.org) using Emacs batch export."""
+
+    @staticmethod
+    def can_render(file_path: Path, view_mode: ViewMode) -> bool:
+        return view_mode == "markdown" and file_path.suffix.lower() == ".org"
+
+    @staticmethod
+    def render(
+        container: VerticalScroll,
+        file_path: Path,
+        line_num: int = 0,
+        match_string: str = "",
+        word_wrap: bool = False,
+        theme: str = "github-dark",
+        scroll_offset_ratio: int = 3,
+        match_highlight_color: str = "bright_white",
+        match_highlight_bgcolor: str = "orange4",
+        other_match_highlight_color: str = "gray66",
+        other_match_highlight_bgcolor: str = "gray23",
+        other_matches: list[tuple[int, str]] | None = None,
+    ) -> tuple[Static, int]:
+        """Render Org file by exporting to Markdown via Emacs."""
+        import subprocess
+        import shutil
+        from rich.text import Text
+
+        abs_path = str(file_path.resolve())
+
+        # Check if emacs is available
+        if shutil.which("emacs") is None:
+            return SourceCodeRenderer.render(
+                container,
+                file_path,
+                line_num=line_num,
+                match_string=match_string,
+                word_wrap=word_wrap,
+                theme=theme,
+                scroll_offset_ratio=scroll_offset_ratio,
+                match_highlight_color=match_highlight_color,
+                match_highlight_bgcolor=match_highlight_bgcolor,
+                other_match_highlight_color=other_match_highlight_color,
+                other_match_highlight_bgcolor=other_match_highlight_bgcolor,
+                other_matches=other_matches,
+            )
+        else:
+            # Use Emacs batch mode to export org to markdown string
+            elisp = (
+                "(progn "
+                "(require 'org) "
+                "(require 'ox-md) "
+                "(with-temp-buffer "
+                f'(insert-file-contents "{abs_path}") '
+                "(org-mode) "
+                "(princ (org-export-string-as (buffer-string) 'md t))))"
+            )
+            result = subprocess.run(
+                ["emacs", "--batch", "--eval", elisp],
+                capture_output=True,
+                timeout=15,
+            )
+
+            if result.returncode != 0:
+                # Emacs export failed - show error
+                try:
+                    error_view = container.query_one("#code", Static)
+                except Exception:
+                    for widget in list(container.children):
+                        widget.remove()
+                    error_view = Static(id="code", expand=True)
+                    container.mount(error_view)
+
+                message = Text()
+                message.append("\n\n")
+                message.append("  Org export failed  \n", style="bold red")
+                message.append("\n")
+                message.append(f"  {file_path.name}", style="dim")
+                message.append(" could not be exported via Emacs.\n", style="dim")
+                stderr = result.stderr.decode("utf-8", errors="replace").strip()
+                if stderr:
+                    message.append(f"\n  {stderr}\n", style="italic dim")
+                error_view.update(message)
+                return error_view, 0
+
+            content = result.stdout.decode("utf-8")
+
+            # Emacs exports org tables as HTML — convert them to markdown tables
+            def _html_table_to_markdown(match: re.Match[str]) -> str:
+                h = html2text.HTML2Text()
+                h.body_width = 0
+                return h.handle(match.group(0)).strip()
+
+            content = re.sub(
+                r"<table[^>]*>.*?</table>",
+                _html_table_to_markdown,
+                content,
+                flags=re.DOTALL,
+            )
+
+            markdown = Markdown(content)
+
+        # Display the rendered markdown
+        try:
+            code_view = container.query_one("#code", Static)
+            code_view.update(markdown)
+        except Exception:
+            for widget in list(container.children):
+                widget.remove()
+            code_view = Static(id="code", expand=True)
+            container.mount(code_view)
+            code_view.update(markdown)
+        return code_view, 0
+
+
 class SourceCodeRenderer:
     """Fallback renderer for source code files with syntax highlighting."""
 
@@ -430,6 +544,6 @@ RENDERERS: list[type[Renderer]] = [
     HTMLRenderer,
     JSONRenderer,  # JSON files
     TableRenderer,  # CSV and TSV files
-    # Future renderers go here:
+    OrgRenderer,  # Emacs Org files
     SourceCodeRenderer,  # Always last - fallback
 ]

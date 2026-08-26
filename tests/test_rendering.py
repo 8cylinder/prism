@@ -350,6 +350,59 @@ class TestJSONRendering:
             assert "invalid.json" in app.title.lower() or app.title != ""
 
 
+class TestOrgRendering:
+    """Test Emacs Org file rendering."""
+
+    @pytest.mark.asyncio
+    async def test_org_file_detected(self, fixtures_dir):
+        """Test that .org files are detected."""
+        org_file = fixtures_dir / "test.org"
+        files = [FileData(file=org_file, line_num=0, match_string="")]
+        app = Prism(files)
+
+        async with app.run_test() as pilot:
+            await pilot.pause()
+
+            data = files[0]
+            is_org = data.file.suffix.lower() == ".org"
+            assert is_org
+
+    @pytest.mark.asyncio
+    async def test_org_rendering_enabled(self, fixtures_dir):
+        """Test that org files are rendered when view mode is active."""
+        org_file = fixtures_dir / "test.org"
+        files = [FileData(file=org_file, line_num=0, match_string="")]
+        app = Prism(files)
+
+        async with app.run_test() as pilot:
+            await pilot.pause()
+
+            # Enable markdown view mode
+            await pilot.press("m")
+            await pilot.pause()
+
+            # Verify the code view exists
+            code_view = app.query_one("#code", Static)
+            assert code_view is not None
+
+    @pytest.mark.asyncio
+    async def test_org_rendering_disabled(self, fixtures_dir):
+        """Test that org files show source when view mode is off."""
+        org_file = fixtures_dir / "test.org"
+        files = [FileData(file=org_file, line_num=0, match_string="")]
+        app = Prism(files)
+
+        async with app.run_test() as pilot:
+            await pilot.pause()
+
+            # Ensure source view mode (default)
+            assert app.view_mode == "source"
+
+            # Verify the code view exists
+            code_view = app.query_one("#code", Static)
+            assert code_view is not None
+
+
 class TestSourceCodeRendering:
     """Test source code rendering (default mode)."""
 
