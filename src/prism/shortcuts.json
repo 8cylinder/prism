@@ -6,6 +6,7 @@
   { "key": "right,i", "action": "next_file", "description": "Next File", "show": true, "key_display": "→|i" },
   { "key": "left,u", "action": "prev_file", "description": "Previous File", "key_display": "←|u" },
   { "key": "w", "action": "toggle_wrap", "description": "Wrap" },
+  { "key": "b", "action": "cycle_image_bg", "description": "BG" },
   { "key": "r", "action": "toggle_view_mode", "description": "Render" },
   { "key": "q", "action": "quit", "description": "Quit" }
 ]

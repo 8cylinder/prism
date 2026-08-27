@@ -24,6 +24,7 @@ from prism.renderers import RENDERERS
 # Constants
 FileListState = Literal["narrow", "wide", "hidden"]
 ViewMode = Literal["source", "markdown"]
+ImageBg = Literal["default", "white", "black"]
 DEFAULT_SYNTAX_THEME = "github-dark"
 DEFAULT_TRACEBACK_THEME = "github-dark"
 
@@ -35,7 +36,8 @@ DEFAULT_BINDINGS = [
     Binding("right,i", "next_file", "Next File", show=True, key_display="→|i"),
     Binding("left,u", "prev_file", "Previous File", key_display="←|u"),
     Binding("w", "toggle_wrap", "Wrap"),
-    Binding("m", "toggle_view_mode", "Render"),
+    Binding("b", "cycle_image_bg", "BG"),
+    Binding("r", "toggle_view_mode", "Render"),
     Binding("q", "quit", "Quit"),
 ]
 
@@ -257,6 +259,7 @@ class Prism(App[None]):
     file_list_state: var[FileListState] = var("narrow")
     word_wrap: var[bool] = var(False)
     view_mode: var[ViewMode] = var("source")
+    image_bg: var[ImageBg] = var("default")
 
     def __init__(
         self, files: list[FileData], config_path: Path | str | None = None
@@ -497,6 +500,15 @@ class Prism(App[None]):
             else:
                 self.title = str(data.file.resolve())
 
+            # Apply or reset image background
+            from textual_image.widget import TGPImage
+
+            try:
+                code_view_container.query_one(TGPImage)
+                self._apply_image_bg()
+            except Exception:
+                code_view_container.styles.background = None
+
     def action_toggle_files(self) -> None:
         """Called in response to key binding. Cycles through narrow -> wide -> hidden."""
         if self.file_list_state == "narrow":
@@ -509,6 +521,44 @@ class Prism(App[None]):
     def action_toggle_wrap(self) -> None:
         """Toggle word wrap in the code viewer."""
         self.word_wrap = not self.word_wrap
+
+    def action_cycle_image_bg(self) -> None:
+        """Cycle image background color: default -> white -> black."""
+        from textual_image.widget import TGPImage
+
+        code_view = self.query_one("#code-view", VerticalScroll)
+        try:
+            code_view.query_one(TGPImage)
+        except Exception:
+            return
+
+        if self.image_bg == "default":
+            self.image_bg = "white"
+        elif self.image_bg == "white":
+            self.image_bg = "black"
+        else:
+            self.image_bg = "default"
+
+        self._apply_image_bg()
+
+    def _apply_image_bg(self) -> None:
+        """Apply the current image background to the code-view container and image widget."""
+        from textual_image.widget import TGPImage
+
+        code_view = self.query_one("#code-view", VerticalScroll)
+        if self.image_bg == "white":
+            bg = "white"
+        elif self.image_bg == "black":
+            bg = "black"
+        else:
+            bg = None
+
+        code_view.styles.background = bg
+        try:
+            image_widget = code_view.query_one(TGPImage)
+            image_widget.styles.background = bg
+        except Exception:
+            pass
 
     def action_toggle_view_mode(self) -> None:
         """Toggle between source and markdown view."""
