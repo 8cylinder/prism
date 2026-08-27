@@ -14,6 +14,7 @@ from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, VerticalScroll
+from textual import events
 from textual.reactive import var
 from textual.widgets import Footer, Header, Static, ListItem, ListView
 
@@ -137,6 +138,12 @@ class FileListItem(ListItem):
         return text
 
 
+class PrismHeader(Header):
+    def _on_click(self, event: events.Click) -> None:
+        event.prevent_default()
+        event.stop()
+
+
 class Prism(App[None]):
     """View files found."""
 
@@ -241,7 +248,7 @@ class Prism(App[None]):
             item.add_class(color_class)
             items.append(item)
 
-        yield Header(show_clock=False)
+        yield PrismHeader(show_clock=False)
         with Container():
             yield ListView(*items, id="file-list")
             yield VerticalScroll(id="code-view")
