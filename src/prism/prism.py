@@ -217,15 +217,7 @@ class PrismHeaderTitle(HeaderTitle):
 
 class PrismHeader(Header):
     def compose(self) -> ComposeResult:
-        from textual.widgets._header import HeaderIcon, HeaderClockSpace, HeaderClock
-
-        yield HeaderIcon().data_bind(Header.icon)
         yield PrismHeaderTitle()
-        yield (
-            HeaderClock().data_bind(Header.time_format)
-            if self._show_clock
-            else HeaderClockSpace()
-        )
 
     def _on_click(self, event: events.Click) -> None:  # type: ignore[override]
         event.prevent_default()
