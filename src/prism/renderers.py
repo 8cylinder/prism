@@ -445,6 +445,31 @@ class OrgRenderer:
         return code_view, 0
 
 
+def _apply_image_fit(image_widget: Widget, container: VerticalScroll, fit: bool) -> None:
+    """Set image widget sizing: shrink to viewport if larger, never upscale."""
+    if fit and container.size.width > 0:
+        from textual_image.widget._base import get_cell_size, ImageSize
+
+        terminal_sizes = get_cell_size()
+        natural_width, _ = ImageSize(
+            image_widget._image_width,
+            image_widget._image_height,
+            width=None,
+            height=None,
+        ).get_cell_size(
+            container.size.width, container.size.height or 2**32, terminal_sizes
+        )
+        if natural_width > container.size.width:
+            image_widget.styles.width = "100%"
+            image_widget.styles.height = "auto"
+        else:
+            image_widget.styles.width = None
+            image_widget.styles.height = None
+    else:
+        image_widget.styles.width = None
+        image_widget.styles.height = None
+
+
 IMAGE_EXTENSIONS = {
     ".png",
     ".jpg",
@@ -498,6 +523,7 @@ class SVGRenderer:
             image_widget = TGPImage(pil_image)
             container.mount(image_widget)
 
+        _apply_image_fit(image_widget, container, word_wrap)
         return image_widget, 0
 
 
@@ -535,6 +561,7 @@ class ImageRenderer:
             image_widget = TGPImage(str(file_path))
             container.mount(image_widget)
 
+        _apply_image_fit(image_widget, container, word_wrap)
         return image_widget, 0
 
 
