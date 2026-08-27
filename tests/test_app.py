@@ -82,13 +82,13 @@ class TestPrismApp:
             # Start in source mode
             assert app.view_mode == "source"
 
-            # Toggle to markdown
-            await pilot.press("m")
+            # Toggle to markdown (keybinding is "r" in shortcuts.json)
+            await pilot.press("r")
             await pilot.pause()
             assert app.view_mode == "markdown"
 
             # Toggle back to source
-            await pilot.press("m")
+            await pilot.press("r")
             await pilot.pause()
             assert app.view_mode == "source"
 

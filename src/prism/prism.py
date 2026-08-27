@@ -45,9 +45,9 @@ def load_keybindings(config_path: Path | str | None = None) -> list[Binding]:
     paths_to_check: list[Path] = []
     if config_path:
         paths_to_check.append(Path(config_path))
-
-    paths_to_check.append(Path.home() / ".config" / "prism" / "shortcuts.json")
-    paths_to_check.append(Path(__file__).parent / "shortcuts.json")
+    else:
+        paths_to_check.append(Path.home() / ".config" / "prism" / "shortcuts.json")
+        paths_to_check.append(Path(__file__).parent / "shortcuts.json")
 
     for path in paths_to_check:
         if path.is_file():

@@ -41,7 +41,7 @@ class TestMarkdownRendering:
             await pilot.pause()  # Let app fully initialize
 
             # Enable markdown view mode
-            await pilot.press("m")
+            await pilot.press("r")
             await pilot.pause()
 
             # Verify the code view exists
@@ -95,7 +95,7 @@ class TestHTMLRendering:
             await pilot.pause()  # Let app fully initialize
 
             # Enable markdown view mode
-            await pilot.press("m")
+            await pilot.press("r")
             await pilot.pause()
 
             # Verify the code view exists
@@ -151,7 +151,7 @@ class TestCSVRendering:
 
         async with app.run_test() as pilot:
             # Enable render view mode
-            await pilot.press("m")
+            await pilot.press("r")
             await pilot.pause()
 
             # Verify DataTable widget is created
@@ -186,7 +186,7 @@ class TestCSVRendering:
 
         async with app.run_test() as pilot:
             # Enable render view mode
-            await pilot.press("m")
+            await pilot.press("r")
             await pilot.pause()
 
             # Verify DataTable widget is created
@@ -206,7 +206,7 @@ class TestCSVRendering:
 
         async with app.run_test() as pilot:
             # Enable render view mode
-            await pilot.press("m")
+            await pilot.press("r")
             await pilot.pause()
 
             # Verify DataTable widget is created
@@ -228,7 +228,7 @@ class TestCSVRendering:
 
         async with app.run_test() as pilot:
             # Enable render view mode
-            await pilot.press("m")
+            await pilot.press("r")
             await pilot.pause()
 
             # Verify DataTable widget is created
@@ -248,7 +248,7 @@ class TestCSVRendering:
 
         async with app.run_test() as pilot:
             # Enable render view mode
-            await pilot.press("m")
+            await pilot.press("r")
             await pilot.pause()
 
             # Should show error message in a Static widget, not crash
@@ -266,7 +266,7 @@ class TestCSVRendering:
 
         async with app.run_test() as pilot:
             # Enable render view mode
-            await pilot.press("m")
+            await pilot.press("r")
             await pilot.pause()
 
             # Should show error message in a Static widget, not crash
@@ -305,7 +305,7 @@ class TestJSONRendering:
 
         async with app.run_test() as pilot:
             # Enable render view mode
-            await pilot.press("m")
+            await pilot.press("r")
             await pilot.pause()
 
             # Verify Static widget is created (JSON is rendered to Static)
@@ -340,7 +340,7 @@ class TestJSONRendering:
 
         async with app.run_test() as pilot:
             # Enable render view mode
-            await pilot.press("m")
+            await pilot.press("r")
             await pilot.pause()
 
             # Should show error message in a Static widget, not crash
@@ -378,7 +378,7 @@ class TestOrgRendering:
             await pilot.pause()
 
             # Enable markdown view mode
-            await pilot.press("m")
+            await pilot.press("r")
             await pilot.pause()
 
             # Verify the code view exists
