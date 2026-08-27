@@ -20,6 +20,7 @@ dependencies = [
     "textual>=8.0.0",
     "html2text>=2024.2.26",
     "textual-image[textual]>=0.2.0",
+    "resvg-py>=0.5.0",
 ]
 
 [project.scripts]

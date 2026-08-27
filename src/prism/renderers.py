@@ -283,7 +283,7 @@ class TableRenderer:
             # Check if we can reuse existing DataTable, otherwise clear and create new
             try:
                 table = container.query_one(DataTable)
-                table.clear()
+                table.clear(columns=True)
             except Exception:
                 # Widget doesn't exist or container has wrong type - clear and create new
                 for widget in list(container.children):
@@ -458,6 +458,49 @@ IMAGE_EXTENSIONS = {
 }
 
 
+class SVGRenderer:
+    """Renderer for SVG files - rasterizes to image in render mode."""
+
+    @staticmethod
+    def can_render(file_path: Path, view_mode: ViewMode) -> bool:
+        return view_mode == "markdown" and file_path.suffix.lower() == ".svg"
+
+    @staticmethod
+    def render(
+        container: VerticalScroll,
+        file_path: Path,
+        line_num: int = 0,
+        match_string: str = "",
+        word_wrap: bool = False,
+        theme: str = "github-dark",
+        scroll_offset_ratio: int = 3,
+        match_highlight_color: str = "bright_white",
+        match_highlight_bgcolor: str = "orange4",
+        other_match_highlight_color: str = "gray66",
+        other_match_highlight_bgcolor: str = "gray23",
+        other_matches: list[tuple[int, str]] | None = None,
+    ) -> tuple[Widget, int]:
+        """Render SVG file as a rasterized image."""
+        import io
+        from resvg_py import svg_to_bytes
+        from PIL import Image as PILImage
+        from textual_image.widget import TGPImage
+
+        png_data = svg_to_bytes(svg_path=str(file_path))
+        pil_image = PILImage.open(io.BytesIO(png_data))
+
+        try:
+            image_widget = container.query_one(TGPImage)
+            image_widget.image = pil_image
+        except Exception:
+            for widget in list(container.children):
+                widget.remove()
+            image_widget = TGPImage(pil_image)
+            container.mount(image_widget)
+
+        return image_widget, 0
+
+
 class ImageRenderer:
     """Renderer for image files using terminal graphics protocols."""
 
@@ -598,6 +641,7 @@ RENDERERS: list[type[Renderer]] = [
     JSONRenderer,  # JSON files
     TableRenderer,  # CSV and TSV files
     OrgRenderer,  # Emacs Org files
+    SVGRenderer,  # SVG files (rasterized in render mode)
     ImageRenderer,  # Image files (PNG, JPEG, WEBP, GIF, etc.)
     SourceCodeRenderer,  # Always last - fallback
 ]

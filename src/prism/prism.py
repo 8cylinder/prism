@@ -361,9 +361,28 @@ class Prism(App[None]):
         self.animation_level = "none"
         self.query_one(ListView).focus()
         self.title = ""
+        self._app_ready = False
+
+    def on_ready(self) -> None:
+        """Mark app as ready and defer content render to allow the UI frame to paint."""
+        self._app_ready = True
+        self.set_timer(0.01, self._render_initial_view)
+
+    def _render_initial_view(self) -> None:
+        """Render the initially highlighted item after the UI chrome is visible."""
+        list_view = self.query_one(ListView)
+        if list_view.highlighted_child and isinstance(
+            list_view.highlighted_child, FileListItem
+        ):
+            self.on_list_view_highlighted(
+                ListView.Highlighted(list_view, list_view.highlighted_child)
+            )
 
     def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
         if not isinstance(event.item, FileListItem):
+            return
+
+        if not getattr(self, "_app_ready", False):
             return
 
         # Prevent re-entrant calls during rendering (atomic check-and-set)
