@@ -2,22 +2,23 @@ Screen {
   background: $surface-darken-1;
 }
 
-Header {
+PrismHeader {
   dock: top;
-}
-
-Header .header--title {
+  height: 1;
+  background: $panel;
   width: 100%;
-  text-align: center;
-  color: $text;
 }
 
-HeaderIcon {
-  display: none;
+PrismHeaderTitle > .header-path {
+  color: gray;
 }
 
-HeaderClockSpace {
-  display: none;
+PrismHeaderTitle > .header-filename {
+  color: white;
+}
+
+PrismHeaderTitle > .header-path-hover {
+  background: $surface-lighten-2;
 }
 
 #file-list{

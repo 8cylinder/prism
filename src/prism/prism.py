@@ -17,6 +17,7 @@ from textual.containers import Container, VerticalScroll
 from textual import events
 from textual.reactive import var
 from textual.widgets import Footer, Header, Static, ListItem, ListView
+from textual.widgets._header import HeaderTitle
 
 from prism.renderers import RENDERERS
 
@@ -69,6 +70,8 @@ def load_keybindings(config_path: Path | str | None = None) -> list[Binding]:
                 continue
 
     return DEFAULT_BINDINGS
+
+
 SCROLL_OFFSET_RATIO = 3
 MATCH_HIGHLIGHT_COLOR = "bright_white"
 MATCH_HIGHLIGHT_BGCOLOR = "orange4"
@@ -138,8 +141,93 @@ class FileListItem(ListItem):
         return text
 
 
+class PrismHeaderTitle(HeaderTitle):
+    COMPONENT_CLASSES = {
+        "header-path",
+        "header-filename",
+        "header-path-hover",
+    }
+
+    def _get_hover_zone(self, x: int) -> str | None:
+        if not self.text:
+            return None
+        text_len = len(self.text)
+        offset = (self.size.width - text_len) // 2
+        pos = x - offset
+        if pos < 0 or pos >= text_len:
+            return None
+        path_len = getattr(self, "_path_len", 0)
+        if path_len and pos < path_len:
+            return "path"
+        return "filename"
+
+    def on_mouse_move(self, event: events.MouseMove) -> None:
+        zone = self._get_hover_zone(event.x)
+        old = (
+            "-hover-path"
+            if self.has_class("-hover-path")
+            else ("-hover-filename" if self.has_class("-hover-filename") else None)
+        )
+        new = f"-hover-{zone}" if zone else None
+        if old != new:
+            self.remove_class("-hover-path", "-hover-filename")
+            if new:
+                self.add_class(new)
+            self.refresh()
+
+    def on_leave(self, event: events.Leave) -> None:
+        self.remove_class("-hover-path", "-hover-filename")
+        self.refresh()
+
+    def render(self) -> Text:
+        text = Text(no_wrap=True, overflow="ellipsis")
+        hover_style = self.get_component_rich_style("header-path-hover")
+        if "/" in self.text:
+            parts = self.text.rsplit("/", 1)
+            self._path_len = len(parts[0]) + 1
+            path_style = self.get_component_rich_style("header-path")
+            filename_style = self.get_component_rich_style("header-filename")
+            if self.has_class("-hover-path"):
+                path_style += hover_style
+                filename_style += hover_style
+            elif self.has_class("-hover-filename"):
+                filename_style += hover_style
+            text.append(parts[0] + "/", style=path_style)
+            text.append(parts[1], style=filename_style)
+        else:
+            self._path_len = 0
+            filename_style = self.get_component_rich_style("header-filename")
+            if self.has_class("-hover-filename"):
+                filename_style += hover_style
+            text.append(self.text, style=filename_style)
+        return text
+
+    def on_click(self, event: events.Click) -> None:
+        if not self.text:
+            return
+        zone = self._get_hover_zone(event.x)
+        if zone == "path":
+            self.app.copy_to_clipboard(self.text)
+            self.notify("Copied full path", timeout=1)
+        elif zone == "filename":
+            filename = self.text.rsplit("/", 1)[-1] if "/" in self.text else self.text
+            self.app.copy_to_clipboard(filename)
+            self.notify("Copied filename", timeout=1)
+
+
 class PrismHeader(Header):
-    def _on_click(self, event: events.Click) -> None:
+    def compose(self) -> ComposeResult:
+        from textual.widgets._header import HeaderIcon, HeaderClockSpace, HeaderClock
+
+        yield HeaderIcon().data_bind(Header.icon)
+        yield PrismHeaderTitle()
+        yield (
+            HeaderClock().data_bind(Header.time_format)
+            if self._show_clock
+            else HeaderClockSpace()
+        )
+
+    def _on_click(self, event: events.Click) -> None:  # type: ignore[override]
         event.prevent_default()
         event.stop()
 
@@ -373,7 +461,7 @@ class Prism(App[None]):
             if hasattr(self, "_error_title") and self._error_title:
                 self.title = self._error_title
             else:
-                self.title = str(data.file)
+                self.title = str(data.file.resolve())
 
     def action_toggle_files(self) -> None:
         """Called in response to key binding. Cycles through narrow -> wide -> hidden."""
