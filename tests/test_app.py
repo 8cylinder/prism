@@ -34,6 +34,20 @@ class TestPrismApp:
             assert app.is_running
 
     @pytest.mark.asyncio
+    async def test_app_starts_with_relative_path(self):
+        """Test that the app starts with a relative path (no directory component)."""
+        files = [FileData(file=Path("README.md"), line_num=0, match_string="")]
+        app = Prism(files)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            assert app.is_running
+            # Verify header title rendered without error
+            from prism.prism import PrismHeaderTitle
+
+            ht = app.query_one(PrismHeaderTitle)
+            assert ht._title != ""
+
+    @pytest.mark.asyncio
     async def test_app_has_file_list(self, sample_files):
         """Test that the file list is populated."""
         app = Prism(sample_files)

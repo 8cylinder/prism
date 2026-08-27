@@ -148,10 +148,17 @@ class PrismHeaderTitle(HeaderTitle):
         "header-path-hover",
     }
 
+    @property
+    def _title(self) -> str:
+        try:
+            return self.text or ""
+        except Exception:
+            return ""
+
     def _get_hover_zone(self, x: int) -> str | None:
-        if not self.text:
+        if not self._title:
             return None
-        text_len = len(self.text)
+        text_len = len(self._title)
         offset = (self.size.width - text_len) // 2
         pos = x - offset
         if pos < 0 or pos >= text_len:
@@ -181,9 +188,10 @@ class PrismHeaderTitle(HeaderTitle):
 
     def render(self) -> Text:
         text = Text(no_wrap=True, overflow="ellipsis")
+        title = self._title
         hover_style = self.get_component_rich_style("header-path-hover")
-        if "/" in self.text:
-            parts = self.text.rsplit("/", 1)
+        if "/" in title:
+            parts = title.rsplit("/", 1)
             self._path_len = len(parts[0]) + 1
             path_style = self.get_component_rich_style("header-path")
             filename_style = self.get_component_rich_style("header-filename")
@@ -199,18 +207,19 @@ class PrismHeaderTitle(HeaderTitle):
             filename_style = self.get_component_rich_style("header-filename")
             if self.has_class("-hover-filename"):
                 filename_style += hover_style
-            text.append(self.text, style=filename_style)
+            text.append(title, style=filename_style)
         return text
 
     def on_click(self, event: events.Click) -> None:
-        if not self.text:
+        title = self._title
+        if not title:
             return
         zone = self._get_hover_zone(event.x)
         if zone == "path":
-            self.app.copy_to_clipboard(self.text)
+            self.app.copy_to_clipboard(title)
             self.notify("Copied full path", timeout=1)
         elif zone == "filename":
-            filename = self.text.rsplit("/", 1)[-1] if "/" in self.text else self.text
+            filename = title.rsplit("/", 1)[-1] if "/" in title else title
             self.app.copy_to_clipboard(filename)
             self.notify("Copied filename", timeout=1)
 
