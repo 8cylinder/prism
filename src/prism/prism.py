@@ -215,6 +215,20 @@ class PrismHeaderTitle(HeaderTitle):
             self.notify("Copied filename", timeout=1)
 
 
+class WrappingListView(ListView):
+    def action_cursor_down(self) -> None:
+        if self.index is not None and self.index >= len(self) - 1:
+            self.index = 0
+        else:
+            super().action_cursor_down()
+
+    def action_cursor_up(self) -> None:
+        if self.index is not None and self.index <= 0:
+            self.index = len(self) - 1
+        else:
+            super().action_cursor_up()
+
+
 class PrismHeader(Header):
     def compose(self) -> ComposeResult:
         yield PrismHeaderTitle()
@@ -330,7 +344,7 @@ class Prism(App[None]):
 
         yield PrismHeader(show_clock=False)
         with Container():
-            yield ListView(*items, id="file-list")
+            yield WrappingListView(*items, id="file-list")
             yield VerticalScroll(id="code-view")
         yield Footer()
 
@@ -473,14 +487,20 @@ class Prism(App[None]):
         self.view_mode = "markdown" if self.view_mode == "source" else "source"
 
     def action_next_item(self) -> None:
-        """Move to the next item in the list."""
+        """Move to the next item in the list, wrapping to top at end."""
         list_view = self.query_one(ListView)
-        list_view.action_cursor_down()
+        if list_view.index is not None and list_view.index >= len(list_view) - 1:
+            list_view.index = 0
+        else:
+            list_view.action_cursor_down()
 
     def action_prev_item(self) -> None:
-        """Move to the previous item in the list."""
+        """Move to the previous item in the list, wrapping to bottom at start."""
         list_view = self.query_one(ListView)
-        list_view.action_cursor_up()
+        if list_view.index is not None and list_view.index <= 0:
+            list_view.index = len(list_view) - 1
+        else:
+            list_view.action_cursor_up()
 
     def action_next_file(self) -> None:
         """Move to the next file in the list."""
