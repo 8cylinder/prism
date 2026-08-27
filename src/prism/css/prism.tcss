@@ -46,6 +46,8 @@ FileListItem {
   height: auto;
   padding: 0 1;
   text-style: none;
+  text-wrap: nowrap;
+  text-overflow: ellipsis;
 }
 
 FileListItem.odd {

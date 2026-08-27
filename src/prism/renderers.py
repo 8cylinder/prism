@@ -445,6 +445,56 @@ class OrgRenderer:
         return code_view, 0
 
 
+IMAGE_EXTENSIONS = {
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".bmp",
+    ".tiff",
+    ".tif",
+    ".ico",
+}
+
+
+class ImageRenderer:
+    """Renderer for image files using terminal graphics protocols."""
+
+    @staticmethod
+    def can_render(file_path: Path, view_mode: ViewMode) -> bool:
+        return file_path.suffix.lower() in IMAGE_EXTENSIONS
+
+    @staticmethod
+    def render(
+        container: VerticalScroll,
+        file_path: Path,
+        line_num: int = 0,
+        match_string: str = "",
+        word_wrap: bool = False,
+        theme: str = "github-dark",
+        scroll_offset_ratio: int = 3,
+        match_highlight_color: str = "bright_white",
+        match_highlight_bgcolor: str = "orange4",
+        other_match_highlight_color: str = "gray66",
+        other_match_highlight_bgcolor: str = "gray23",
+        other_matches: list[tuple[int, str]] | None = None,
+    ) -> tuple[Widget, int]:
+        """Render image file using terminal graphics protocol."""
+        from textual_image.widget import TGPImage
+
+        try:
+            image_widget = container.query_one(TGPImage)
+            image_widget.image = str(file_path)
+        except Exception:
+            for widget in list(container.children):
+                widget.remove()
+            image_widget = TGPImage(str(file_path))
+            container.mount(image_widget)
+
+        return image_widget, 0
+
+
 class SourceCodeRenderer:
     """Fallback renderer for source code files with syntax highlighting."""
 
@@ -548,5 +598,6 @@ RENDERERS: list[type[Renderer]] = [
     JSONRenderer,  # JSON files
     TableRenderer,  # CSV and TSV files
     OrgRenderer,  # Emacs Org files
+    ImageRenderer,  # Image files (PNG, JPEG, WEBP, GIF, etc.)
     SourceCodeRenderer,  # Always last - fallback
 ]

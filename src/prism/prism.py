@@ -113,8 +113,8 @@ class FileListItem(ListItem):
 
     def render(self) -> Text:
         """Render the file list item as rich Text."""
-        # First line: prefix + filename and line number
-        text = Text()
+        width = self.size.width or 40
+        text = Text(no_wrap=True, overflow="ellipsis")
 
         # Always use full vertical bar for filename
         prefix = "┃ "
@@ -122,7 +122,7 @@ class FileListItem(ListItem):
 
         # Account for prefix and line number suffix when snipping filename
         line_num_str = f":{self.data.line_num}" if self.data.line_num else ""
-        available_width = self.size.width - len(prefix) - len(line_num_str)
+        available_width = width - len(prefix) - len(line_num_str)
         filename = snip(self.data.file.name, available_width)
         text.append(filename, style="")
         if self.data.line_num:
@@ -135,7 +135,7 @@ class FileListItem(ListItem):
             path_prefix = "╹ " if self.is_last else "┃ "
             text.append(path_prefix, style=VERTICAL_BAR_COLOR)
             parent_path = f"{self.data.file.parent}/"
-            parent_path = snip(parent_path, self.size.width - len(path_prefix))
+            parent_path = snip(parent_path, width - len(path_prefix))
             text.append(parent_path, style="dim italic")
 
         return text
@@ -151,7 +151,7 @@ class PrismHeaderTitle(HeaderTitle):
     @property
     def _title(self) -> str:
         try:
-            return self.text or ""
+            return self.app.title or ""
         except Exception:
             return ""
 

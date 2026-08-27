@@ -1,6 +1,6 @@
 [project]
 name = "prism"
-version = "1.0.1"
+version = "1.1.0"
 description = "View files found with cli tools"
 readme = "README.md"
 authors = [
@@ -17,8 +17,9 @@ classifiers = [
 requires-python = ">=3.13"
 dependencies = [
     "click>=8.1.8",
-    "textual>=1.0.0",
+    "textual>=8.0.0",
     "html2text>=2024.2.26",
+    "textual-image[textual]>=0.2.0",
 ]
 
 [project.scripts]
