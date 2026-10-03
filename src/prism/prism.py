@@ -14,17 +14,14 @@ from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, VerticalScroll
-from textual import events
 from textual.reactive import var
 from textual.widgets import Footer, Header, Static, ListItem, ListView
-from textual.widgets._header import HeaderTitle
 
 from prism.renderers import RENDERERS
 
 # Constants
 FileListState = Literal["narrow", "wide", "hidden"]
 ViewMode = Literal["source", "markdown"]
-ImageBg = Literal["default", "white", "black"]
 DEFAULT_SYNTAX_THEME = "github-dark"
 DEFAULT_TRACEBACK_THEME = "github-dark"
 
@@ -36,8 +33,7 @@ DEFAULT_BINDINGS = [
     Binding("right,i", "next_file", "Next File", show=True, key_display="→|i"),
     Binding("left,u", "prev_file", "Previous File", key_display="←|u"),
     Binding("w", "toggle_wrap", "Wrap"),
-    Binding("b", "cycle_image_bg", "BG"),
-    Binding("r", "toggle_view_mode", "Render"),
+    Binding("m", "toggle_view_mode", "Render"),
     Binding("q", "quit", "Quit"),
 ]
 
@@ -47,9 +43,9 @@ def load_keybindings(config_path: Path | str | None = None) -> list[Binding]:
     paths_to_check: list[Path] = []
     if config_path:
         paths_to_check.append(Path(config_path))
-    else:
-        paths_to_check.append(Path.home() / ".config" / "prism" / "shortcuts.json")
-        paths_to_check.append(Path(__file__).parent / "shortcuts.json")
+
+    paths_to_check.append(Path.home() / ".config" / "prism" / "shortcuts.json")
+    paths_to_check.append(Path(__file__).parent / "shortcuts.json")
 
     for path in paths_to_check:
         if path.is_file():
@@ -72,8 +68,6 @@ def load_keybindings(config_path: Path | str | None = None) -> list[Binding]:
                 continue
 
     return DEFAULT_BINDINGS
-
-
 SCROLL_OFFSET_RATIO = 3
 MATCH_HIGHLIGHT_COLOR = "bright_white"
 MATCH_HIGHLIGHT_BGCOLOR = "orange4"
@@ -115,8 +109,8 @@ class FileListItem(ListItem):
 
     def render(self) -> Text:
         """Render the file list item as rich Text."""
-        width = self.size.width or 40
-        text = Text(no_wrap=True, overflow="ellipsis")
+        # First line: prefix + filename and line number
+        text = Text()
 
         # Always use full vertical bar for filename
         prefix = "┃ "
@@ -124,7 +118,7 @@ class FileListItem(ListItem):
 
         # Account for prefix and line number suffix when snipping filename
         line_num_str = f":{self.data.line_num}" if self.data.line_num else ""
-        available_width = width - len(prefix) - len(line_num_str)
+        available_width = self.size.width - len(prefix) - len(line_num_str)
         filename = snip(self.data.file.name, available_width)
         text.append(filename, style="")
         if self.data.line_num:
@@ -137,116 +131,10 @@ class FileListItem(ListItem):
             path_prefix = "╹ " if self.is_last else "┃ "
             text.append(path_prefix, style=VERTICAL_BAR_COLOR)
             parent_path = f"{self.data.file.parent}/"
-            parent_path = snip(parent_path, width - len(path_prefix))
+            parent_path = snip(parent_path, self.size.width - len(path_prefix))
             text.append(parent_path, style="dim italic")
 
         return text
-
-
-class PrismHeaderTitle(HeaderTitle):
-    COMPONENT_CLASSES = {
-        "header-path",
-        "header-filename",
-        "header-path-hover",
-    }
-
-    @property
-    def _title(self) -> str:
-        try:
-            return self.app.title or ""
-        except Exception:
-            return ""
-
-    def _get_hover_zone(self, x: int) -> str | None:
-        if not self._title:
-            return None
-        text_len = len(self._title)
-        offset = (self.size.width - text_len) // 2
-        pos = x - offset
-        if pos < 0 or pos >= text_len:
-            return None
-        path_len = getattr(self, "_path_len", 0)
-        if path_len and pos < path_len:
-            return "path"
-        return "filename"
-
-    def on_mouse_move(self, event: events.MouseMove) -> None:
-        zone = self._get_hover_zone(event.x)
-        old = (
-            "-hover-path"
-            if self.has_class("-hover-path")
-            else ("-hover-filename" if self.has_class("-hover-filename") else None)
-        )
-        new = f"-hover-{zone}" if zone else None
-        if old != new:
-            self.remove_class("-hover-path", "-hover-filename")
-            if new:
-                self.add_class(new)
-            self.refresh()
-
-    def on_leave(self, event: events.Leave) -> None:
-        self.remove_class("-hover-path", "-hover-filename")
-        self.refresh()
-
-    def render(self) -> Text:
-        text = Text(no_wrap=True, overflow="ellipsis")
-        title = self._title
-        hover_style = self.get_component_rich_style("header-path-hover")
-        if "/" in title:
-            parts = title.rsplit("/", 1)
-            self._path_len = len(parts[0]) + 1
-            path_style = self.get_component_rich_style("header-path")
-            filename_style = self.get_component_rich_style("header-filename")
-            if self.has_class("-hover-path"):
-                path_style += hover_style
-                filename_style += hover_style
-            elif self.has_class("-hover-filename"):
-                filename_style += hover_style
-            text.append(parts[0] + "/", style=path_style)
-            text.append(parts[1], style=filename_style)
-        else:
-            self._path_len = 0
-            filename_style = self.get_component_rich_style("header-filename")
-            if self.has_class("-hover-filename"):
-                filename_style += hover_style
-            text.append(title, style=filename_style)
-        return text
-
-    def on_click(self, event: events.Click) -> None:
-        title = self._title
-        if not title:
-            return
-        zone = self._get_hover_zone(event.x)
-        if zone == "path":
-            self.app.copy_to_clipboard(title)
-            self.notify("Copied full path", timeout=1)
-        elif zone == "filename":
-            filename = title.rsplit("/", 1)[-1] if "/" in title else title
-            self.app.copy_to_clipboard(filename)
-            self.notify("Copied filename", timeout=1)
-
-
-class WrappingListView(ListView):
-    def action_cursor_down(self) -> None:
-        if self.index is not None and self.index >= len(self) - 1:
-            self.index = 0
-        else:
-            super().action_cursor_down()
-
-    def action_cursor_up(self) -> None:
-        if self.index is not None and self.index <= 0:
-            self.index = len(self) - 1
-        else:
-            super().action_cursor_up()
-
-
-class PrismHeader(Header):
-    def compose(self) -> ComposeResult:
-        yield PrismHeaderTitle()
-
-    def _on_click(self, event: events.Click) -> None:  # type: ignore[override]
-        event.prevent_default()
-        event.stop()
 
 
 class Prism(App[None]):
@@ -259,7 +147,6 @@ class Prism(App[None]):
     file_list_state: var[FileListState] = var("narrow")
     word_wrap: var[bool] = var(False)
     view_mode: var[ViewMode] = var("source")
-    image_bg: var[ImageBg] = var("default")
 
     def __init__(
         self, files: list[FileData], config_path: Path | str | None = None
@@ -354,9 +241,9 @@ class Prism(App[None]):
             item.add_class(color_class)
             items.append(item)
 
-        yield PrismHeader(show_clock=False)
+        yield Header(show_clock=False)
         with Container():
-            yield WrappingListView(*items, id="file-list")
+            yield ListView(*items, id="file-list")
             yield VerticalScroll(id="code-view")
         yield Footer()
 
@@ -364,28 +251,9 @@ class Prism(App[None]):
         self.animation_level = "none"
         self.query_one(ListView).focus()
         self.title = ""
-        self._app_ready = False
-
-    def on_ready(self) -> None:
-        """Mark app as ready and defer content render to allow the UI frame to paint."""
-        self._app_ready = True
-        self.set_timer(0.01, self._render_initial_view)
-
-    def _render_initial_view(self) -> None:
-        """Render the initially highlighted item after the UI chrome is visible."""
-        list_view = self.query_one(ListView)
-        if list_view.highlighted_child and isinstance(
-            list_view.highlighted_child, FileListItem
-        ):
-            self.on_list_view_highlighted(
-                ListView.Highlighted(list_view, list_view.highlighted_child)
-            )
 
     def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
         if not isinstance(event.item, FileListItem):
-            return
-
-        if not getattr(self, "_app_ready", False):
             return
 
         # Prevent re-entrant calls during rendering (atomic check-and-set)
@@ -498,16 +366,7 @@ class Prism(App[None]):
             if hasattr(self, "_error_title") and self._error_title:
                 self.title = self._error_title
             else:
-                self.title = str(data.file.resolve())
-
-            # Apply or reset image background
-            from textual_image.widget import TGPImage
-
-            try:
-                code_view_container.query_one(TGPImage)
-                self._apply_image_bg()
-            except Exception:
-                code_view_container.styles.background = None
+                self.title = str(data.file)
 
     def action_toggle_files(self) -> None:
         """Called in response to key binding. Cycles through narrow -> wide -> hidden."""
@@ -522,63 +381,19 @@ class Prism(App[None]):
         """Toggle word wrap in the code viewer."""
         self.word_wrap = not self.word_wrap
 
-    def action_cycle_image_bg(self) -> None:
-        """Cycle image background color: default -> white -> black."""
-        from textual_image.widget import TGPImage
-
-        code_view = self.query_one("#code-view", VerticalScroll)
-        try:
-            code_view.query_one(TGPImage)
-        except Exception:
-            return
-
-        if self.image_bg == "default":
-            self.image_bg = "white"
-        elif self.image_bg == "white":
-            self.image_bg = "black"
-        else:
-            self.image_bg = "default"
-
-        self._apply_image_bg()
-
-    def _apply_image_bg(self) -> None:
-        """Apply the current image background to the code-view container and image widget."""
-        from textual_image.widget import TGPImage
-
-        code_view = self.query_one("#code-view", VerticalScroll)
-        if self.image_bg == "white":
-            bg = "white"
-        elif self.image_bg == "black":
-            bg = "black"
-        else:
-            bg = None
-
-        code_view.styles.background = bg
-        try:
-            image_widget = code_view.query_one(TGPImage)
-            image_widget.styles.background = bg
-        except Exception:
-            pass
-
     def action_toggle_view_mode(self) -> None:
         """Toggle between source and markdown view."""
         self.view_mode = "markdown" if self.view_mode == "source" else "source"
 
     def action_next_item(self) -> None:
-        """Move to the next item in the list, wrapping to top at end."""
+        """Move to the next item in the list."""
         list_view = self.query_one(ListView)
-        if list_view.index is not None and list_view.index >= len(list_view) - 1:
-            list_view.index = 0
-        else:
-            list_view.action_cursor_down()
+        list_view.action_cursor_down()
 
     def action_prev_item(self) -> None:
-        """Move to the previous item in the list, wrapping to bottom at start."""
+        """Move to the previous item in the list."""
         list_view = self.query_one(ListView)
-        if list_view.index is not None and list_view.index <= 0:
-            list_view.index = len(list_view) - 1
-        else:
-            list_view.action_cursor_up()
+        list_view.action_cursor_up()
 
     def action_next_file(self) -> None:
         """Move to the next file in the list."""

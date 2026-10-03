@@ -283,7 +283,7 @@ class TableRenderer:
             # Check if we can reuse existing DataTable, otherwise clear and create new
             try:
                 table = container.query_one(DataTable)
-                table.clear(columns=True)
+                table.clear()
             except Exception:
                 # Widget doesn't exist or container has wrong type - clear and create new
                 for widget in list(container.children):
@@ -445,126 +445,6 @@ class OrgRenderer:
         return code_view, 0
 
 
-def _apply_image_fit(image_widget: Widget, container: VerticalScroll, fit: bool) -> None:
-    """Set image widget sizing: shrink to viewport if larger, never upscale."""
-    if fit and container.size.width > 0:
-        from textual_image.widget._base import get_cell_size, ImageSize
-
-        terminal_sizes = get_cell_size()
-        natural_width, _ = ImageSize(
-            image_widget._image_width,
-            image_widget._image_height,
-            width=None,
-            height=None,
-        ).get_cell_size(
-            container.size.width, container.size.height or 2**32, terminal_sizes
-        )
-        if natural_width > container.size.width:
-            image_widget.styles.width = "100%"
-            image_widget.styles.height = "auto"
-        else:
-            image_widget.styles.width = None
-            image_widget.styles.height = None
-    else:
-        image_widget.styles.width = None
-        image_widget.styles.height = None
-
-
-IMAGE_EXTENSIONS = {
-    ".png",
-    ".jpg",
-    ".jpeg",
-    ".gif",
-    ".webp",
-    ".bmp",
-    ".tiff",
-    ".tif",
-    ".ico",
-}
-
-
-class SVGRenderer:
-    """Renderer for SVG files - rasterizes to image in render mode."""
-
-    @staticmethod
-    def can_render(file_path: Path, view_mode: ViewMode) -> bool:
-        return view_mode == "markdown" and file_path.suffix.lower() == ".svg"
-
-    @staticmethod
-    def render(
-        container: VerticalScroll,
-        file_path: Path,
-        line_num: int = 0,
-        match_string: str = "",
-        word_wrap: bool = False,
-        theme: str = "github-dark",
-        scroll_offset_ratio: int = 3,
-        match_highlight_color: str = "bright_white",
-        match_highlight_bgcolor: str = "orange4",
-        other_match_highlight_color: str = "gray66",
-        other_match_highlight_bgcolor: str = "gray23",
-        other_matches: list[tuple[int, str]] | None = None,
-    ) -> tuple[Widget, int]:
-        """Render SVG file as a rasterized image."""
-        import io
-        from resvg_py import svg_to_bytes
-        from PIL import Image as PILImage
-        from textual_image.widget import TGPImage
-
-        png_data = svg_to_bytes(svg_path=str(file_path))
-        pil_image = PILImage.open(io.BytesIO(png_data))
-
-        try:
-            image_widget = container.query_one(TGPImage)
-            image_widget.image = pil_image
-        except Exception:
-            for widget in list(container.children):
-                widget.remove()
-            image_widget = TGPImage(pil_image)
-            container.mount(image_widget)
-
-        _apply_image_fit(image_widget, container, word_wrap)
-        return image_widget, 0
-
-
-class ImageRenderer:
-    """Renderer for image files using terminal graphics protocols."""
-
-    @staticmethod
-    def can_render(file_path: Path, view_mode: ViewMode) -> bool:
-        return file_path.suffix.lower() in IMAGE_EXTENSIONS
-
-    @staticmethod
-    def render(
-        container: VerticalScroll,
-        file_path: Path,
-        line_num: int = 0,
-        match_string: str = "",
-        word_wrap: bool = False,
-        theme: str = "github-dark",
-        scroll_offset_ratio: int = 3,
-        match_highlight_color: str = "bright_white",
-        match_highlight_bgcolor: str = "orange4",
-        other_match_highlight_color: str = "gray66",
-        other_match_highlight_bgcolor: str = "gray23",
-        other_matches: list[tuple[int, str]] | None = None,
-    ) -> tuple[Widget, int]:
-        """Render image file using terminal graphics protocol."""
-        from textual_image.widget import TGPImage
-
-        try:
-            image_widget = container.query_one(TGPImage)
-            image_widget.image = str(file_path)
-        except Exception:
-            for widget in list(container.children):
-                widget.remove()
-            image_widget = TGPImage(str(file_path))
-            container.mount(image_widget)
-
-        _apply_image_fit(image_widget, container, word_wrap)
-        return image_widget, 0
-
-
 class SourceCodeRenderer:
     """Fallback renderer for source code files with syntax highlighting."""
 
@@ -668,7 +548,5 @@ RENDERERS: list[type[Renderer]] = [
     JSONRenderer,  # JSON files
     TableRenderer,  # CSV and TSV files
     OrgRenderer,  # Emacs Org files
-    SVGRenderer,  # SVG files (rasterized in render mode)
-    ImageRenderer,  # Image files (PNG, JPEG, WEBP, GIF, etc.)
     SourceCodeRenderer,  # Always last - fallback
 ]

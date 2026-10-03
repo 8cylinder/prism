@@ -2,23 +2,22 @@ Screen {
   background: $surface-darken-1;
 }
 
-PrismHeader {
+Header {
   dock: top;
-  height: 1;
-  background: $panel;
+}
+
+Header .header--title {
   width: 100%;
+  text-align: center;
+  color: $text;
 }
 
-PrismHeaderTitle > .header-path {
-  color: gray;
+HeaderIcon {
+  display: none;
 }
 
-PrismHeaderTitle > .header-filename {
-  color: white;
-}
-
-PrismHeaderTitle > .header-path-hover {
-  background: $surface-lighten-2;
+HeaderClockSpace {
+  display: none;
 }
 
 #file-list{
@@ -46,8 +45,6 @@ FileListItem {
   height: auto;
   padding: 0 1;
   text-style: none;
-  text-wrap: nowrap;
-  text-overflow: ellipsis;
 }
 
 FileListItem.odd {
