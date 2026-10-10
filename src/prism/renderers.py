@@ -48,6 +48,12 @@ class Renderer(Protocol):
         other_match_highlight_color: str = "gray66",
         other_match_highlight_bgcolor: str = "gray23",
         other_matches: list[tuple[int, str]] | None = None,
+        search_matches: list[tuple[int, int, int]] | None = None,
+        search_current_index: int = -1,
+        search_match_color: str = "white",
+        search_match_bgcolor: str = "dark_red",
+        search_current_color: str = "white",
+        search_current_bgcolor: str = "bright_red",
     ) -> tuple[Widget, int]:
         """Render the file to the container.
 
@@ -64,6 +70,12 @@ class Renderer(Protocol):
             other_match_highlight_color: Color for other matches
             other_match_highlight_bgcolor: Background color for other matches
             other_matches: (line_num, match_string) pairs for other entries pointing to this file
+            search_matches: (line_num, start, end) tuples for search matches
+            search_current_index: Index of the currently focused search match
+            search_match_color: Text color for search matches
+            search_match_bgcolor: Background color for search matches
+            search_current_color: Text color for the current search match
+            search_current_bgcolor: Background color for the current search match
 
         Returns:
             Tuple of (widget created, scroll position)
@@ -95,6 +107,12 @@ class MarkdownRenderer:
         other_match_highlight_color: str = "gray66",
         other_match_highlight_bgcolor: str = "gray23",
         other_matches: list[tuple[int, str]] | None = None,
+        search_matches: list[tuple[int, int, int]] | None = None,
+        search_current_index: int = -1,
+        search_match_color: str = "white",
+        search_match_bgcolor: str = "dark_red",
+        search_current_color: str = "white",
+        search_current_bgcolor: str = "bright_red",
     ) -> tuple[Static, int]:
         """Render Markdown file as formatted markdown."""
         # Read file first (may raise OSError/UnicodeDecodeError)
@@ -142,6 +160,12 @@ class HTMLRenderer:
         other_match_highlight_color: str = "gray66",
         other_match_highlight_bgcolor: str = "gray23",
         other_matches: list[tuple[int, str]] | None = None,
+        search_matches: list[tuple[int, int, int]] | None = None,
+        search_current_index: int = -1,
+        search_match_color: str = "white",
+        search_match_bgcolor: str = "dark_red",
+        search_current_color: str = "white",
+        search_current_bgcolor: str = "bright_red",
     ) -> tuple[Static, int]:
         """Render HTML file by converting to Markdown."""
         # Read file first (may raise OSError/UnicodeDecodeError)
@@ -190,6 +214,12 @@ class JSONRenderer:
         other_match_highlight_color: str = "gray66",
         other_match_highlight_bgcolor: str = "gray23",
         other_matches: list[tuple[int, str]] | None = None,
+        search_matches: list[tuple[int, int, int]] | None = None,
+        search_current_index: int = -1,
+        search_match_color: str = "white",
+        search_match_bgcolor: str = "dark_red",
+        search_current_color: str = "white",
+        search_current_bgcolor: str = "bright_red",
     ) -> tuple[Static, int]:
         """Render JSON file as formatted, syntax-highlighted JSON."""
         from rich.text import Text
@@ -264,6 +294,12 @@ class TableRenderer:
         other_match_highlight_color: str = "gray66",
         other_match_highlight_bgcolor: str = "gray23",
         other_matches: list[tuple[int, str]] | None = None,
+        search_matches: list[tuple[int, int, int]] | None = None,
+        search_current_index: int = -1,
+        search_match_color: str = "white",
+        search_match_bgcolor: str = "dark_red",
+        search_current_color: str = "white",
+        search_current_bgcolor: str = "bright_red",
     ) -> tuple[DataTable | Static, int]:
         """Render CSV/TSV file as a DataTable."""
         from rich.text import Text
@@ -349,6 +385,12 @@ class OrgRenderer:
         other_match_highlight_color: str = "gray66",
         other_match_highlight_bgcolor: str = "gray23",
         other_matches: list[tuple[int, str]] | None = None,
+        search_matches: list[tuple[int, int, int]] | None = None,
+        search_current_index: int = -1,
+        search_match_color: str = "white",
+        search_match_bgcolor: str = "dark_red",
+        search_current_color: str = "white",
+        search_current_bgcolor: str = "bright_red",
     ) -> tuple[Static, int]:
         """Render Org file by exporting to Markdown via Emacs."""
         import subprocess
@@ -467,6 +509,12 @@ class SourceCodeRenderer:
         other_match_highlight_color: str = "gray66",
         other_match_highlight_bgcolor: str = "gray23",
         other_matches: list[tuple[int, str]] | None = None,
+        search_matches: list[tuple[int, int, int]] | None = None,
+        search_current_index: int = -1,
+        search_match_color: str = "white",
+        search_match_bgcolor: str = "dark_red",
+        search_current_color: str = "white",
+        search_current_bgcolor: str = "bright_red",
     ) -> tuple[Static, int]:
         """Render source code with syntax highlighting."""
         # Try to read the file first to detect binary files early
@@ -527,6 +575,26 @@ class SourceCodeRenderer:
                     bgcolor=match_highlight_bgcolor,
                 )
                 syntax.stylize_range(highlight, (line_num, pos[0]), (line_num, pos[1]))
+
+        # Highlight all search matches, emphasizing the current one
+        if search_matches:
+            for index, (match_line, start, end) in enumerate(search_matches):
+                if not (0 < match_line <= len(lines)):
+                    continue
+                if index == search_current_index:
+                    search_style = Style(
+                        color=search_current_color,
+                        bgcolor=search_current_bgcolor,
+                        bold=True,
+                    )
+                else:
+                    search_style = Style(
+                        color=search_match_color,
+                        bgcolor=search_match_bgcolor,
+                    )
+                syntax.stylize_range(
+                    search_style, (match_line, start), (match_line, end)
+                )
 
         code_view.update(syntax)
 

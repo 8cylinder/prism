@@ -63,3 +63,16 @@ FileListItem.selected {
 FileListItem:hover {
   background: $primary-background-lighten-1;
 }
+
+#code-view {
+  height: 1fr;
+}
+
+#search-input {
+  display: none;
+  height: 3;
+}
+
+.-searching #search-input {
+  display: block;
+}

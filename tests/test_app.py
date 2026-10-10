@@ -3,7 +3,13 @@
 import json
 from pathlib import Path
 import pytest
-from prism.prism import Prism, FileData, FileListItem, load_keybindings, DEFAULT_BINDINGS
+from prism.prism import (
+    Prism,
+    FileData,
+    FileListItem,
+    load_keybindings,
+    DEFAULT_BINDINGS,
+)
 
 
 @pytest.fixture
@@ -186,6 +192,148 @@ class TestPrismApp:
             assert app.title == "Binary file"
 
 
+class TestSearch:
+    """Test the find / find next functionality in the text view."""
+
+    @pytest.mark.asyncio
+    async def test_search_shows_input_and_focuses(self, sample_files):
+        """ctrl-f reveals the search input and focuses it."""
+        app = Prism(sample_files)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+
+            search_input = app.query_one("#search-input")
+            assert search_input.display is False
+
+            await pilot.press("ctrl+f")
+            await pilot.pause()
+
+            assert app.has_class("-searching")
+            assert search_input.display is True
+            assert app.focused is search_input
+
+    @pytest.mark.asyncio
+    async def test_typing_updates_matches(self, sample_files):
+        """Typing a query highlights every match and selects the first."""
+        app = Prism(sample_files)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+
+            await pilot.press("ctrl+f")
+            await pilot.pause()
+            for char in "hello":
+                await pilot.press(char)
+            await pilot.pause()
+
+            assert app._search_query == "hello"
+            assert app._search_matches == [(4, 4, 9), (5, 11, 16), (10, 10, 15)]
+            assert app._current_match_index == 0
+
+    @pytest.mark.asyncio
+    async def test_find_next_cycles_matches(self, sample_files):
+        """ctrl-g advances the current match and wraps around."""
+        app = Prism(sample_files)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+
+            await pilot.press("ctrl+f")
+            for char in "hello":
+                await pilot.press(char)
+            await pilot.pause()
+            assert app._current_match_index == 0
+
+            await pilot.press("ctrl+g")
+            await pilot.pause()
+            assert app._current_match_index == 1
+
+            await pilot.press("ctrl+g")
+            await pilot.pause()
+            assert app._current_match_index == 2
+
+            await pilot.press("ctrl+g")
+            await pilot.pause()
+            assert app._current_match_index == 0
+
+    @pytest.mark.asyncio
+    async def test_escape_clears_matches(self, sample_files):
+        """Escape clears matches and highlights but remembers the query."""
+        app = Prism(sample_files)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+
+            await pilot.press("ctrl+f")
+            for char in "hello":
+                await pilot.press(char)
+            await pilot.pause()
+
+            await pilot.press("escape")
+            await pilot.pause()
+
+            assert app._search_matches == []
+            assert app._search_query == ""
+            assert app._last_search == "hello"
+            assert not app.has_class("-searching")
+
+    @pytest.mark.asyncio
+    async def test_search_reuses_last_string(self, sample_files):
+        """ctrl-f after clearing defaults to the last used search string."""
+        app = Prism(sample_files)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+
+            await pilot.press("ctrl+f")
+            for char in "hello":
+                await pilot.press(char)
+            await pilot.pause()
+            await pilot.press("escape")
+            await pilot.pause()
+
+            await pilot.press("ctrl+f")
+            await pilot.pause()
+
+            search_input = app.query_one("#search-input")
+            assert search_input.value == "hello"
+            assert app._search_query == "hello"
+            assert len(app._search_matches) == 3
+
+    @pytest.mark.asyncio
+    async def test_backspace_updates_matches(self, sample_files):
+        """Backspace removes a character and updates the matches."""
+        app = Prism(sample_files)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+
+            await pilot.press("ctrl+f")
+            for char in "hello":
+                await pilot.press(char)
+            await pilot.pause()
+
+            await pilot.press("backspace")
+            await pilot.pause()
+
+            assert app._search_query == "hell"
+
+    @pytest.mark.asyncio
+    async def test_enter_accepts_search(self, sample_files):
+        """Enter hides the input but keeps the matches and returns focus."""
+        app = Prism(sample_files)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+
+            await pilot.press("ctrl+f")
+            for char in "hello":
+                await pilot.press(char)
+            await pilot.pause()
+
+            await pilot.press("enter")
+            await pilot.pause()
+
+            assert not app.has_class("-searching")
+            assert app._search_query == "hello"
+            assert len(app._search_matches) == 3
+            assert app.focused is app.query_one("#file-list")
+
+
 class TestFileListItem:
     """Test the FileListItem widget."""
 
@@ -245,7 +393,11 @@ class TestKeybindings:
         custom_json.write_text(
             json.dumps(
                 [
-                    {"key": "x", "action": "toggle_files", "description": "Custom Toggle"},
+                    {
+                        "key": "x",
+                        "action": "toggle_files",
+                        "description": "Custom Toggle",
+                    },
                     {"key": "y", "action": "quit", "description": "Custom Quit"},
                 ]
             )

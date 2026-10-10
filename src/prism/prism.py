@@ -15,7 +15,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, VerticalScroll
 from textual.reactive import var
-from textual.widgets import Footer, Header, Static, ListItem, ListView
+from textual.widgets import Footer, Header, Static, ListItem, ListView, Input
 
 from prism.renderers import RENDERERS
 
@@ -34,6 +34,9 @@ DEFAULT_BINDINGS = [
     Binding("left,u", "prev_file", "Previous File", key_display="←|u"),
     Binding("w", "toggle_wrap", "Wrap"),
     Binding("m", "toggle_view_mode", "Render"),
+    Binding("ctrl+f", "search", "Find", priority=True),
+    Binding("ctrl+g", "search_next", "Find Next", show=False, priority=True),
+    Binding("escape", "clear_search", "Clear Search", show=False, priority=True),
     Binding("q", "quit", "Quit"),
 ]
 
@@ -61,6 +64,7 @@ def load_keybindings(config_path: Path | str | None = None) -> list[Binding]:
                             description=item["description"],
                             show=item.get("show", True),
                             key_display=item.get("key_display"),
+                            priority=item.get("priority", False),
                         )
                     )
                 return bindings
@@ -68,12 +72,20 @@ def load_keybindings(config_path: Path | str | None = None) -> list[Binding]:
                 continue
 
     return DEFAULT_BINDINGS
+
+
 SCROLL_OFFSET_RATIO = 3
 MATCH_HIGHLIGHT_COLOR = "bright_white"
 MATCH_HIGHLIGHT_BGCOLOR = "orange4"
 OTHER_MATCH_HIGHLIGHT_COLOR = "orange3"
 OTHER_MATCH_HIGHLIGHT_BGCOLOR = "#3d2b00"
 VERTICAL_BAR_COLOR = "#304759"
+
+# Search (find) highlighting
+SEARCH_MATCH_HIGHLIGHT_COLOR = "white"
+SEARCH_MATCH_HIGHLIGHT_BGCOLOR = "dark_red"
+SEARCH_CURRENT_HIGHLIGHT_COLOR = "white"
+SEARCH_CURRENT_HIGHLIGHT_BGCOLOR = "bright_red"
 
 
 def snip(string: str, length: int) -> str:
@@ -154,6 +166,11 @@ class Prism(App[None]):
         self.files = files
         self._rendering = False  # Flag to prevent re-entrant rendering
         self._code_widget_counter = 0  # Counter for unique widget IDs
+        self._current_data: FileData | None = None
+        self._search_query = ""  # Active search string
+        self._last_search = ""  # Last submitted search string
+        self._search_matches: list[tuple[int, int, int]] = []  # (line, start, end)
+        self._current_match_index = -1
         if config_path is not None:
             self.BINDINGS = load_keybindings(config_path)
         super().__init__()
@@ -245,6 +262,7 @@ class Prism(App[None]):
         with Container():
             yield ListView(*items, id="file-list")
             yield VerticalScroll(id="code-view")
+            yield Input(placeholder="Find…", id="search-input")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -261,112 +279,225 @@ class Prism(App[None]):
             return
         self._rendering = True
 
+        data = event.item.data
         try:
             # Clear selection from all items and add to current item
             for item in self.query(FileListItem):
                 item.remove_class("selected")
             event.item.add_class("selected")
 
-            data = event.item.data
             event.stop()
-
-            # Get values from reactive variables BEFORE clearing widgets
-            # This prevents triggering watchers during widget manipulation
-            current_view_mode = self.view_mode
-            current_word_wrap = self.word_wrap
-
-            # Get the code-view container
-            code_view_container = self.query_one("#code-view", VerticalScroll)
-
-            try:
-                # Find the first renderer that can handle this file
-                for renderer in RENDERERS:
-                    if renderer.can_render(data.file, current_view_mode):
-                        # Collect (line_num, match_string) for other entries in this file
-                        other_matches = [
-                            (fd.line_num, fd.match_string)
-                            for fd in self.files
-                            if fd.file == data.file
-                            and fd.line_num != data.line_num
-                            and fd.line_num > 0
-                        ]
-
-                        # Render the file
-                        code_view, scroll_y = renderer.render(
-                            container=code_view_container,
-                            file_path=data.file,
-                            line_num=data.line_num,
-                            match_string=data.match_string,
-                            word_wrap=current_word_wrap,
-                            theme=DEFAULT_SYNTAX_THEME,
-                            scroll_offset_ratio=SCROLL_OFFSET_RATIO,
-                            match_highlight_color=MATCH_HIGHLIGHT_COLOR,
-                            match_highlight_bgcolor=MATCH_HIGHLIGHT_BGCOLOR,
-                            other_match_highlight_color=OTHER_MATCH_HIGHLIGHT_COLOR,
-                            other_match_highlight_bgcolor=OTHER_MATCH_HIGHLIGHT_BGCOLOR,
-                            other_matches=other_matches,
-                        )
-
-                        # Calculate column position for editor if we have a match
-                        if data.match_string and data.line_num > 0:
-                            with open(data.file, "r", encoding="utf-8") as f:
-                                lines = f.readlines()
-                                if data.line_num <= len(lines):
-                                    line = lines[data.line_num - 1]
-                                    escaped_pattern = re.escape(data.match_string)
-                                    match = re.search(escaped_pattern, line)
-                                    if match:
-                                        # Store column position for editor (emacs uses 1-indexed columns)
-                                        data.column = match.span()[0] + 1
-
-                        # Scroll to the appropriate position
-                        if data.line_num > 0:
-                            code_view_container.scroll_to(
-                                y=max(0, scroll_y), animate=False
-                            )
-
-                        break  # Stop after first matching renderer
-
-            except (OSError, UnicodeDecodeError, IndexError) as e:
-                # OSError: file read errors
-                # UnicodeDecodeError: binary files or encoding issues
-                # IndexError: line_num out of range
-
-                # Check if widget already exists, if so just update it
-                try:
-                    code_view = code_view_container.query_one("#code", Static)
-                except Exception:
-                    # Widget doesn't exist, create and mount it
-                    code_view = Static(id="code", expand=True)
-                    code_view_container.mount(code_view)
-
-                # Show user-friendly message for binary files, traceback for other errors
-                if isinstance(e, UnicodeDecodeError):
-                    message = Text()
-                    message.append("\n\n")
-                    message.append(
-                        "  This file cannot be displayed  \n", style="bold red"
-                    )
-                    message.append("\n")
-                    message.append(f"  {data.file.name}", style="dim")
-                    message.append(" appears to be a binary file.\n", style="dim")
-                    code_view.update(message)
-                    self._error_title: str | None = "Binary file"
-                else:
-                    code_view.update(
-                        Traceback(theme=DEFAULT_TRACEBACK_THEME, width=None)
-                    )
-                    # Store error for title update after _rendering flag is cleared
-                    self._error_title = f"ERROR: {type(e).__name__}"
-            else:
-                self._error_title = None
+            self._current_data = data
+            self._render_file(data)
         finally:
             self._rendering = False
             # Set title after rendering flag is cleared to avoid triggering watchers
-            if hasattr(self, "_error_title") and self._error_title:
-                self.title = self._error_title
+            error_title = getattr(self, "_error_title", None)
+            if error_title:
+                self.title = error_title
             else:
                 self.title = str(data.file)
+
+    def _render_file(self, data: FileData) -> None:
+        """Render ``data`` into the code view, applying any active search."""
+        # Get values from reactive variables BEFORE clearing widgets
+        # This prevents triggering watchers during widget manipulation
+        current_view_mode = self.view_mode
+        current_word_wrap = self.word_wrap
+
+        # Recompute search matches for this file
+        if self._search_query:
+            self._search_matches = self._compute_search_matches(data.file)
+            if self._current_match_index >= len(self._search_matches):
+                self._current_match_index = 0 if self._search_matches else -1
+        else:
+            self._search_matches = []
+            self._current_match_index = -1
+
+        # Get the code-view container
+        code_view_container = self.query_one("#code-view", VerticalScroll)
+
+        try:
+            # Find the first renderer that can handle this file
+            for renderer in RENDERERS:
+                if renderer.can_render(data.file, current_view_mode):
+                    # Collect (line_num, match_string) for other entries in this file
+                    other_matches = [
+                        (fd.line_num, fd.match_string)
+                        for fd in self.files
+                        if fd.file == data.file
+                        and fd.line_num != data.line_num
+                        and fd.line_num > 0
+                    ]
+
+                    # Render the file
+                    _code_view, scroll_y = renderer.render(
+                        container=code_view_container,
+                        file_path=data.file,
+                        line_num=data.line_num,
+                        match_string=data.match_string,
+                        word_wrap=current_word_wrap,
+                        theme=DEFAULT_SYNTAX_THEME,
+                        scroll_offset_ratio=SCROLL_OFFSET_RATIO,
+                        match_highlight_color=MATCH_HIGHLIGHT_COLOR,
+                        match_highlight_bgcolor=MATCH_HIGHLIGHT_BGCOLOR,
+                        other_match_highlight_color=OTHER_MATCH_HIGHLIGHT_COLOR,
+                        other_match_highlight_bgcolor=OTHER_MATCH_HIGHLIGHT_BGCOLOR,
+                        other_matches=other_matches,
+                        search_matches=self._search_matches or None,
+                        search_current_index=self._current_match_index,
+                        search_match_color=SEARCH_MATCH_HIGHLIGHT_COLOR,
+                        search_match_bgcolor=SEARCH_MATCH_HIGHLIGHT_BGCOLOR,
+                        search_current_color=SEARCH_CURRENT_HIGHLIGHT_COLOR,
+                        search_current_bgcolor=SEARCH_CURRENT_HIGHLIGHT_BGCOLOR,
+                    )
+
+                    # Scroll to the current search match if there is one
+                    if 0 <= self._current_match_index < len(self._search_matches):
+                        match_line = self._search_matches[self._current_match_index][0]
+                        scroll_offset = self.size.height // SCROLL_OFFSET_RATIO
+                        scroll_y = match_line - scroll_offset
+
+                    # Calculate column position for editor if we have a match
+                    if data.match_string and data.line_num > 0:
+                        with open(data.file, "r", encoding="utf-8") as f:
+                            lines = f.readlines()
+                            if data.line_num <= len(lines):
+                                line = lines[data.line_num - 1]
+                                escaped_pattern = re.escape(data.match_string)
+                                match = re.search(escaped_pattern, line)
+                                if match:
+                                    # Store column position for editor (emacs uses 1-indexed columns)
+                                    data.column = match.span()[0] + 1
+
+                    # Scroll to the appropriate position
+                    if data.line_num > 0 or self._search_matches:
+                        code_view_container.scroll_to(y=max(0, scroll_y), animate=False)
+
+                    break  # Stop after first matching renderer
+
+        except (OSError, UnicodeDecodeError, IndexError) as e:
+            # OSError: file read errors
+            # UnicodeDecodeError: binary files or encoding issues
+            # IndexError: line_num out of range
+
+            # Check if widget already exists, if so just update it
+            try:
+                code_view = code_view_container.query_one("#code", Static)
+            except Exception:
+                # Widget doesn't exist, create and mount it
+                code_view = Static(id="code", expand=True)
+                code_view_container.mount(code_view)
+
+            # Show user-friendly message for binary files, traceback for other errors
+            if isinstance(e, UnicodeDecodeError):
+                message = Text()
+                message.append("\n\n")
+                message.append("  This file cannot be displayed  \n", style="bold red")
+                message.append("\n")
+                message.append(f"  {data.file.name}", style="dim")
+                message.append(" appears to be a binary file.\n", style="dim")
+                code_view.update(message)
+                self._error_title: str | None = "Binary file"
+            else:
+                code_view.update(Traceback(theme=DEFAULT_TRACEBACK_THEME, width=None))
+                # Store error for title update after _rendering flag is cleared
+                self._error_title = f"ERROR: {type(e).__name__}"
+        else:
+            self._error_title = None
+
+    def _compute_search_matches(self, file_path: Path) -> list[tuple[int, int, int]]:
+        """Return (line, start, end) tuples for every search match in a file."""
+        matches: list[tuple[int, int, int]] = []
+        if not self._search_query:
+            return matches
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+        except (OSError, UnicodeDecodeError):
+            return matches
+
+        for line_num, line in enumerate(lines, start=1):
+            start = 0
+            while True:
+                index = line.find(self._search_query, start)
+                if index == -1:
+                    break
+                matches.append((line_num, index, index + len(self._search_query)))
+                start = index + len(self._search_query)
+        return matches
+
+    def _refresh_current_view(self) -> None:
+        """Re-render the currently displayed file, if any."""
+        if self._current_data is None or self._rendering:
+            return
+        self._rendering = True
+        try:
+            self._render_file(self._current_data)
+        finally:
+            self._rendering = False
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id == "search-input":
+            self._update_search(event.value)
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id == "search-input":
+            # Accept the search: keep the highlights but return focus to the list
+            self.remove_class("-searching")
+            self.query_one(ListView).focus()
+
+    def _update_search(self, query: str) -> None:
+        """Update the active search query and refresh highlights."""
+        self._search_query = query
+        if query:
+            self._last_search = query
+        if not query:
+            self._search_matches = []
+            self._current_match_index = -1
+        else:
+            file_path = self._current_data.file if self._current_data else None
+            self._search_matches = (
+                self._compute_search_matches(file_path) if file_path else []
+            )
+            self._current_match_index = 0 if self._search_matches else -1
+        self._refresh_current_view()
+
+    def action_search(self) -> None:
+        """Open the search input, defaulting to the last used search string."""
+        search_input = self.query_one("#search-input", Input)
+        self.add_class("-searching")
+        if self._last_search:
+            search_input.value = self._last_search
+        search_input.cursor_position = len(search_input.value)
+        search_input.focus()
+        if self._last_search and self._search_query != self._last_search:
+            self._update_search(self._last_search)
+
+    def action_search_next(self) -> None:
+        """Move to the next search match."""
+        if not self._search_query:
+            self.action_search()
+            return
+        if not self._search_matches:
+            return
+        self._current_match_index = (self._current_match_index + 1) % len(
+            self._search_matches
+        )
+        self._refresh_current_view()
+
+    def action_clear_search(self) -> None:
+        """Clear the active search and its highlights."""
+        if not self.has_class("-searching") and not self._search_query:
+            return
+        self.remove_class("-searching")
+        search_input = self.query_one("#search-input", Input)
+        search_input.value = ""
+        self._search_query = ""
+        self._search_matches = []
+        self._current_match_index = -1
+        self.query_one(ListView).focus()
+        self._refresh_current_view()
 
     def action_toggle_files(self) -> None:
         """Called in response to key binding. Cycles through narrow -> wide -> hidden."""

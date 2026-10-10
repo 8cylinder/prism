@@ -7,5 +7,8 @@
   { "key": "left,u", "action": "prev_file", "description": "Previous File", "key_display": "←|u" },
   { "key": "w", "action": "toggle_wrap", "description": "Wrap" },
   { "key": "r", "action": "toggle_view_mode", "description": "Render" },
+  { "key": "ctrl+f", "action": "search", "description": "Find", "priority": true },
+  { "key": "ctrl+g", "action": "search_next", "description": "Find Next", "show": false, "priority": true },
+  { "key": "escape", "action": "clear_search", "description": "Clear Search", "show": false, "priority": true },
   { "key": "q", "action": "quit", "description": "Quit" }
 ]
