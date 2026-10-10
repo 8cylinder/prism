@@ -11,7 +11,7 @@ displays search results in a split-pane interface: a file list on the
 left and syntax-highlighted file contents on the right.
 
 **Key dependencies:**
-- `textual` - TUI framework (version 1.0.0+)
+- `textual` - TUI framework (version 8.2.8+)
   - `textual reference` - https://textual.textualize.io/reference/
   - `textual widget docs` - https://textual.textualize.io/widget_gallery/
 - `click` - CLI argument parsing
