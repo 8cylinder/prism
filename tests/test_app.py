@@ -197,7 +197,7 @@ class TestSearch:
 
     @pytest.mark.asyncio
     async def test_search_shows_input_and_focuses(self, sample_files):
-        """ctrl-f reveals the search input and focuses it."""
+        """slash reveals the search input and focuses it."""
         app = Prism(sample_files)
         async with app.run_test() as pilot:
             await pilot.pause()
@@ -205,7 +205,7 @@ class TestSearch:
             search_input = app.query_one("#search-input")
             assert search_input.display is False
 
-            await pilot.press("ctrl+f")
+            await pilot.press("slash")
             await pilot.pause()
 
             assert app.has_class("-searching")
@@ -219,40 +219,85 @@ class TestSearch:
         async with app.run_test() as pilot:
             await pilot.pause()
 
-            await pilot.press("ctrl+f")
+            await pilot.press("slash")
             await pilot.pause()
             for char in "hello":
                 await pilot.press(char)
             await pilot.pause()
 
             assert app._search_query == "hello"
-            assert app._search_matches == [(4, 4, 9), (5, 11, 16), (10, 10, 15)]
+            assert app._search_matches == [
+                (4, 4, 9),
+                (5, 11, 16),
+                (6, 13, 18),
+                (10, 10, 15),
+            ]
             assert app._current_match_index == 0
 
     @pytest.mark.asyncio
-    async def test_find_next_cycles_matches(self, sample_files):
-        """ctrl-g advances the current match and wraps around."""
+    async def test_search_is_case_insensitive(self, sample_files):
+        """Search matches are found regardless of case."""
         app = Prism(sample_files)
         async with app.run_test() as pilot:
             await pilot.pause()
 
-            await pilot.press("ctrl+f")
+            await pilot.press("slash")
+            for char in "HELLO":
+                await pilot.press(char)
+            await pilot.pause()
+
+            assert app._search_query == "HELLO"
+            assert len(app._search_matches) == 4
+
+    @pytest.mark.asyncio
+    async def test_find_next_cycles_matches(self, sample_files):
+        """ctrl-n advances the current match and wraps around."""
+        app = Prism(sample_files)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+
+            await pilot.press("slash")
             for char in "hello":
                 await pilot.press(char)
             await pilot.pause()
             assert app._current_match_index == 0
 
-            await pilot.press("ctrl+g")
+            await pilot.press("ctrl+n")
             await pilot.pause()
             assert app._current_match_index == 1
 
-            await pilot.press("ctrl+g")
+            await pilot.press("ctrl+n")
             await pilot.pause()
             assert app._current_match_index == 2
 
-            await pilot.press("ctrl+g")
+            await pilot.press("ctrl+n")
+            await pilot.pause()
+            assert app._current_match_index == 3
+
+            await pilot.press("ctrl+n")
             await pilot.pause()
             assert app._current_match_index == 0
+
+    @pytest.mark.asyncio
+    async def test_find_prev_cycles_matches(self, sample_files):
+        """ctrl-p moves backwards through matches and wraps around."""
+        app = Prism(sample_files)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+
+            await pilot.press("slash")
+            for char in "hello":
+                await pilot.press(char)
+            await pilot.pause()
+            assert app._current_match_index == 0
+
+            await pilot.press("ctrl+p")
+            await pilot.pause()
+            assert app._current_match_index == 3
+
+            await pilot.press("ctrl+p")
+            await pilot.pause()
+            assert app._current_match_index == 2
 
     @pytest.mark.asyncio
     async def test_escape_clears_matches(self, sample_files):
@@ -261,7 +306,7 @@ class TestSearch:
         async with app.run_test() as pilot:
             await pilot.pause()
 
-            await pilot.press("ctrl+f")
+            await pilot.press("slash")
             for char in "hello":
                 await pilot.press(char)
             await pilot.pause()
@@ -276,25 +321,25 @@ class TestSearch:
 
     @pytest.mark.asyncio
     async def test_search_reuses_last_string(self, sample_files):
-        """ctrl-f after clearing defaults to the last used search string."""
+        """slash after clearing defaults to the last used search string."""
         app = Prism(sample_files)
         async with app.run_test() as pilot:
             await pilot.pause()
 
-            await pilot.press("ctrl+f")
+            await pilot.press("slash")
             for char in "hello":
                 await pilot.press(char)
             await pilot.pause()
             await pilot.press("escape")
             await pilot.pause()
 
-            await pilot.press("ctrl+f")
+            await pilot.press("slash")
             await pilot.pause()
 
             search_input = app.query_one("#search-input")
             assert search_input.value == "hello"
             assert app._search_query == "hello"
-            assert len(app._search_matches) == 3
+            assert len(app._search_matches) == 4
 
     @pytest.mark.asyncio
     async def test_backspace_updates_matches(self, sample_files):
@@ -303,7 +348,7 @@ class TestSearch:
         async with app.run_test() as pilot:
             await pilot.pause()
 
-            await pilot.press("ctrl+f")
+            await pilot.press("slash")
             for char in "hello":
                 await pilot.press(char)
             await pilot.pause()
@@ -320,7 +365,7 @@ class TestSearch:
         async with app.run_test() as pilot:
             await pilot.pause()
 
-            await pilot.press("ctrl+f")
+            await pilot.press("slash")
             for char in "hello":
                 await pilot.press(char)
             await pilot.pause()
@@ -330,7 +375,7 @@ class TestSearch:
 
             assert not app.has_class("-searching")
             assert app._search_query == "hello"
-            assert len(app._search_matches) == 3
+            assert len(app._search_matches) == 4
             assert app.focused is app.query_one("#file-list")
 
 

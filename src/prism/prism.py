@@ -34,8 +34,9 @@ DEFAULT_BINDINGS = [
     Binding("left,u", "prev_file", "Previous File", key_display="←|u"),
     Binding("w", "toggle_wrap", "Wrap"),
     Binding("m", "toggle_view_mode", "Render"),
-    Binding("ctrl+f", "search", "Find", priority=True),
-    Binding("ctrl+g", "search_next", "Find Next", show=False, priority=True),
+    Binding("slash", "search", "Find"),
+    Binding("ctrl+n", "search_next", "Find Next", show=False, priority=True),
+    Binding("ctrl+p", "search_prev", "Find Previous", show=False, priority=True),
     Binding("escape", "clear_search", "Clear Search", show=False, priority=True),
     Binding("q", "quit", "Quit"),
 ]
@@ -407,7 +408,7 @@ class Prism(App[None]):
             self._error_title = None
 
     def _compute_search_matches(self, file_path: Path) -> list[tuple[int, int, int]]:
-        """Return (line, start, end) tuples for every search match in a file."""
+        """Return (line, start, end) tuples for every match (case-insensitive)."""
         matches: list[tuple[int, int, int]] = []
         if not self._search_query:
             return matches
@@ -417,14 +418,10 @@ class Prism(App[None]):
         except (OSError, UnicodeDecodeError):
             return matches
 
+        pattern = re.compile(re.escape(self._search_query), re.IGNORECASE)
         for line_num, line in enumerate(lines, start=1):
-            start = 0
-            while True:
-                index = line.find(self._search_query, start)
-                if index == -1:
-                    break
-                matches.append((line_num, index, index + len(self._search_query)))
-                start = index + len(self._search_query)
+            for match in pattern.finditer(line):
+                matches.append((line_num, match.start(), match.end()))
         return matches
 
     def _refresh_current_view(self) -> None:
@@ -482,6 +479,18 @@ class Prism(App[None]):
         if not self._search_matches:
             return
         self._current_match_index = (self._current_match_index + 1) % len(
+            self._search_matches
+        )
+        self._refresh_current_view()
+
+    def action_search_prev(self) -> None:
+        """Move to the previous search match."""
+        if not self._search_query:
+            self.action_search()
+            return
+        if not self._search_matches:
+            return
+        self._current_match_index = (self._current_match_index - 1) % len(
             self._search_matches
         )
         self._refresh_current_view()
