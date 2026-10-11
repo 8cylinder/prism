@@ -70,7 +70,9 @@ FileListItem:hover {
 
 #search-input {
   display: none;
-  height: 3;
+  height: 1;
+  border: none;
+  padding: 0 1;
 }
 
 .-searching #search-input {
