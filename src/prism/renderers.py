@@ -10,12 +10,148 @@ from rich.syntax import Syntax
 from rich.markdown import Markdown
 from rich.style import Style
 from rich.json import JSON
+from rich.text import Text
+from rich.console import (
+    Console,
+    ConsoleOptions,
+    RenderableType,
+    RenderResult,
+)
 import html2text
 import re
 import csv
 import json
 
 ViewMode = Literal["source", "markdown"]
+
+
+def _make_search_styles(
+    match_color: str,
+    match_bgcolor: str,
+    current_color: str,
+    current_bgcolor: str,
+) -> tuple[Style, Style]:
+    """Build the styles used for search matches and the current match."""
+    match_style = Style(color=match_color, bgcolor=match_bgcolor)
+    current_style = Style(color=current_color, bgcolor=current_bgcolor, bold=True)
+    return match_style, current_style
+
+
+class SearchHighlighter:
+    """Wrap a rich renderable and highlight search matches in its output.
+
+    Rendered documents (markdown, JSON, HTML, org) no longer map one-to-one
+    to source lines, so instead of styling source ranges we style the
+    rendered text itself. The wrapped renderable is converted to a ``Text``
+    so character ranges can be located, then a style is applied on top of
+    whatever styling the renderable already produced.
+    """
+
+    def __init__(
+        self,
+        renderable: RenderableType,
+        query: str,
+        match_style: Style,
+        current_style: Style,
+        current_index: int = -1,
+    ) -> None:
+        self._renderable = renderable
+        self._query = query
+        self._match_style = match_style
+        self._current_style = current_style
+        self._current_index = current_index
+        # Zero-based rendered line of the current match, set during render.
+        self.current_match_line: int | None = None
+
+    def __rich_console__(
+        self, console: Console, options: ConsoleOptions
+    ) -> RenderResult:
+        text = Text()
+        for segment in console.render(self._renderable, options):
+            text.append(segment.text, segment.style)
+
+        self.current_match_line = None
+        if not self._query:
+            yield text
+            return
+
+        try:
+            pattern = re.compile(re.escape(self._query), re.IGNORECASE)
+        except re.error:
+            yield text
+            return
+
+        plain = text.plain
+        for index, match in enumerate(pattern.finditer(plain)):
+            if match.start() == match.end():
+                continue
+            if index == self._current_index:
+                style = self._current_style
+                self.current_match_line = plain.count("\n", 0, match.start())
+            else:
+                style = self._match_style
+            text.stylize(style, match.start(), match.end())
+
+        yield text
+
+
+def apply_search_highlight(
+    renderable: RenderableType,
+    search_query: str,
+    search_current_index: int,
+    search_match_color: str,
+    search_match_bgcolor: str,
+    search_current_color: str,
+    search_current_bgcolor: str,
+) -> RenderableType:
+    """Wrap ``renderable`` so search matches are highlighted, if searching."""
+    if not search_query:
+        return renderable
+    match_style, current_style = _make_search_styles(
+        search_match_color,
+        search_match_bgcolor,
+        search_current_color,
+        search_current_bgcolor,
+    )
+    return SearchHighlighter(
+        renderable,
+        search_query,
+        match_style,
+        current_style,
+        search_current_index,
+    )
+
+
+def _set_highlighter(widget: Static, renderable: RenderableType) -> None:
+    """Record the search highlighter on a widget so the app can scroll to it."""
+    setattr(
+        widget,
+        "_search_highlighter",
+        renderable if isinstance(renderable, SearchHighlighter) else None,
+    )
+
+
+def _highlight_cell(
+    value: str,
+    pattern: "re.Pattern[str] | None",
+    match_style: Style,
+    current_style: Style,
+    current_index: int,
+    counter: int,
+) -> tuple[Text, int]:
+    """Highlight search matches inside a single table cell.
+
+    Returns the styled cell and the updated global match counter so the
+    "current" match styling can be tracked across cells.
+    """
+    cell = Text(str(value))
+    if pattern is None:
+        return cell, counter
+    for match in pattern.finditer(cell.plain):
+        style = current_style if counter == current_index else match_style
+        cell.stylize(style, match.start(), match.end())
+        counter += 1
+    return cell, counter
 
 
 class Renderer(Protocol):
@@ -54,6 +190,7 @@ class Renderer(Protocol):
         search_match_bgcolor: str = "dark_red",
         search_current_color: str = "white",
         search_current_bgcolor: str = "bright_red",
+        search_query: str = "",
     ) -> tuple[Widget, int]:
         """Render the file to the container.
 
@@ -76,6 +213,7 @@ class Renderer(Protocol):
             search_match_bgcolor: Background color for search matches
             search_current_color: Text color for the current search match
             search_current_bgcolor: Background color for the current search match
+            search_query: Raw search string, used by rendered view modes
 
         Returns:
             Tuple of (widget created, scroll position)
@@ -113,13 +251,22 @@ class MarkdownRenderer:
         search_match_bgcolor: str = "dark_red",
         search_current_color: str = "white",
         search_current_bgcolor: str = "bright_red",
+        search_query: str = "",
     ) -> tuple[Static, int]:
         """Render Markdown file as formatted markdown."""
         # Read file first (may raise OSError/UnicodeDecodeError)
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
-        markdown = Markdown(content)
+        markdown = apply_search_highlight(
+            Markdown(content),
+            search_query,
+            search_current_index,
+            search_match_color,
+            search_match_bgcolor,
+            search_current_color,
+            search_current_bgcolor,
+        )
 
         # Check if widget already exists, if so just update it
         try:
@@ -132,6 +279,7 @@ class MarkdownRenderer:
             code_view = Static(id="code", expand=True)
             container.mount(code_view)
             code_view.update(markdown)
+        _set_highlighter(code_view, markdown)
         return code_view, 0
 
 
@@ -166,6 +314,7 @@ class HTMLRenderer:
         search_match_bgcolor: str = "dark_red",
         search_current_color: str = "white",
         search_current_bgcolor: str = "bright_red",
+        search_query: str = "",
     ) -> tuple[Static, int]:
         """Render HTML file by converting to Markdown."""
         # Read file first (may raise OSError/UnicodeDecodeError)
@@ -177,7 +326,15 @@ class HTMLRenderer:
         h.ignore_links = False
         h.ignore_images = False
         markdown_content = h.handle(content)
-        markdown = Markdown(markdown_content)
+        markdown = apply_search_highlight(
+            Markdown(markdown_content),
+            search_query,
+            search_current_index,
+            search_match_color,
+            search_match_bgcolor,
+            search_current_color,
+            search_current_bgcolor,
+        )
 
         # Check if widget already exists, if so just update it
         try:
@@ -190,6 +347,7 @@ class HTMLRenderer:
             code_view = Static(id="code", expand=True)
             container.mount(code_view)
             code_view.update(markdown)
+        _set_highlighter(code_view, markdown)
         return code_view, 0
 
 
@@ -220,6 +378,7 @@ class JSONRenderer:
         search_match_bgcolor: str = "dark_red",
         search_current_color: str = "white",
         search_current_bgcolor: str = "bright_red",
+        search_query: str = "",
     ) -> tuple[Static, int]:
         """Render JSON file as formatted, syntax-highlighted JSON."""
         from rich.text import Text
@@ -230,7 +389,15 @@ class JSONRenderer:
                 data = json.load(f)
 
             # Create rich JSON representation
-            json_renderable = JSON.from_data(data)
+            json_renderable = apply_search_highlight(
+                JSON.from_data(data),
+                search_query,
+                search_current_index,
+                search_match_color,
+                search_match_bgcolor,
+                search_current_color,
+                search_current_bgcolor,
+            )
 
             # Check if widget already exists, if so just update it
             try:
@@ -244,6 +411,7 @@ class JSONRenderer:
                 container.mount(code_view)
                 code_view.update(json_renderable)
 
+            _set_highlighter(code_view, json_renderable)
             return code_view, 0
 
         except json.JSONDecodeError as e:
@@ -300,6 +468,7 @@ class TableRenderer:
         search_match_bgcolor: str = "dark_red",
         search_current_color: str = "white",
         search_current_bgcolor: str = "bright_red",
+        search_query: str = "",
     ) -> tuple[DataTable | Static, int]:
         """Render CSV/TSV file as a DataTable."""
         from rich.text import Text
@@ -328,13 +497,48 @@ class TableRenderer:
                 container.mount(table)
 
             if rows:
+                match_style, current_style = _make_search_styles(
+                    search_match_color,
+                    search_match_bgcolor,
+                    search_current_color,
+                    search_current_bgcolor,
+                )
+                pattern = (
+                    re.compile(re.escape(search_query), re.IGNORECASE)
+                    if search_query
+                    else None
+                )
+                match_counter = 0
+
                 # First row is headers
                 headers = rows[0]
-                table.add_columns(*headers)
+                header_cells = []
+                for value in headers:
+                    cell, match_counter = _highlight_cell(
+                        value,
+                        pattern,
+                        match_style,
+                        current_style,
+                        search_current_index,
+                        match_counter,
+                    )
+                    header_cells.append(cell)
+                table.add_columns(*header_cells)
 
                 # Add remaining rows
                 for row in rows[1:]:
-                    table.add_row(*row)
+                    cells = []
+                    for value in row:
+                        cell, match_counter = _highlight_cell(
+                            value,
+                            pattern,
+                            match_style,
+                            current_style,
+                            search_current_index,
+                            match_counter,
+                        )
+                        cells.append(cell)
+                    table.add_row(*cells)
 
             return table, 0
 
@@ -391,6 +595,7 @@ class OrgRenderer:
         search_match_bgcolor: str = "dark_red",
         search_current_color: str = "white",
         search_current_bgcolor: str = "bright_red",
+        search_query: str = "",
     ) -> tuple[Static, int]:
         """Render Org file by exporting to Markdown via Emacs."""
         import subprocess
@@ -414,6 +619,7 @@ class OrgRenderer:
                 other_match_highlight_color=other_match_highlight_color,
                 other_match_highlight_bgcolor=other_match_highlight_bgcolor,
                 other_matches=other_matches,
+                search_query=search_query,
             )
         else:
             # Use Emacs batch mode to export org to markdown string
@@ -472,7 +678,15 @@ class OrgRenderer:
                 flags=re.DOTALL,
             )
 
-            markdown = Markdown(content)
+            markdown = apply_search_highlight(
+                Markdown(content),
+                search_query,
+                search_current_index,
+                search_match_color,
+                search_match_bgcolor,
+                search_current_color,
+                search_current_bgcolor,
+            )
 
         # Display the rendered markdown
         try:
@@ -484,6 +698,7 @@ class OrgRenderer:
             code_view = Static(id="code", expand=True)
             container.mount(code_view)
             code_view.update(markdown)
+        _set_highlighter(code_view, markdown)
         return code_view, 0
 
 
@@ -515,6 +730,7 @@ class SourceCodeRenderer:
         search_match_bgcolor: str = "dark_red",
         search_current_color: str = "white",
         search_current_bgcolor: str = "bright_red",
+        search_query: str = "",
     ) -> tuple[Static, int]:
         """Render source code with syntax highlighting."""
         # Try to read the file first to detect binary files early
@@ -597,6 +813,7 @@ class SourceCodeRenderer:
                 )
 
         code_view.update(syntax)
+        _set_highlighter(code_view, syntax)
 
         # Calculate scroll position
         from textual.app import App

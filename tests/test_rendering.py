@@ -422,3 +422,101 @@ class TestSourceCodeRendering:
             # Verify the code view exists
             code_view = app.query_one("#code", Static)
             assert code_view is not None
+
+
+class TestRenderedSearchHighlighting:
+    """Rendered documents should highlight active search matches."""
+
+    def _render_to_text(self, renderable):
+        from rich.console import Console
+        from rich.text import Text
+
+        console = Console(width=40, color_system=None)
+        text = Text()
+        for segment in console.render(renderable, console.options):
+            text.append(segment.text, segment.style)
+        return text
+
+    def test_no_query_leaves_renderable_unchanged(self):
+        from rich.markdown import Markdown
+        from prism.renderers import apply_search_highlight
+
+        markdown = Markdown("hello world")
+        result = apply_search_highlight(
+            markdown, "", 0, "white", "dark_red", "white", "bright_red"
+        )
+        assert result is markdown
+
+    def test_query_wraps_renderable(self):
+        from rich.markdown import Markdown
+        from prism.renderers import apply_search_highlight, SearchHighlighter
+
+        result = apply_search_highlight(
+            Markdown("hello world"),
+            "hello",
+            0,
+            "white",
+            "dark_red",
+            "white",
+            "bright_red",
+        )
+        assert isinstance(result, SearchHighlighter)
+
+    def test_matches_are_styled_in_rendered_output(self):
+        from rich.console import Console
+        from rich.markdown import Markdown
+        from prism.renderers import apply_search_highlight
+
+        result = apply_search_highlight(
+            Markdown("hello world"),
+            "hello",
+            0,
+            "white",
+            "dark_red",
+            "white",
+            "bright_red",
+        )
+        text = self._render_to_text(result)
+
+        assert "hello" in text.plain
+        start = text.plain.index("hello")
+        console = Console(color_system=None)
+        resolved = text.get_style_at_offset(console, start)
+        assert resolved.bgcolor is not None
+
+    def test_current_match_line_is_tracked(self):
+        from rich.markdown import Markdown
+        from prism.renderers import apply_search_highlight
+
+        result = apply_search_highlight(
+            Markdown("first line\n\nsecond hello line"),
+            "hello",
+            0,
+            "white",
+            "dark_red",
+            "white",
+            "bright_red",
+        )
+        self._render_to_text(result)
+        assert result.current_match_line is not None
+
+    @pytest.mark.asyncio
+    async def test_rendered_markdown_attaches_highlighter(self, fixtures_dir):
+        """Searching a rendered markdown file wraps it in a highlighter."""
+        from prism.renderers import SearchHighlighter
+
+        md_file = fixtures_dir / "test.md"
+        files = [FileData(file=md_file, line_num=1, match_string="")]
+        app = Prism(files)
+
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.view_mode = "markdown"
+            await pilot.pause()
+
+            app._update_search("Feature")
+            await pilot.pause()
+
+            code_view = app.query_one("#code", Static)
+            assert app._search_matches
+            assert isinstance(code_view._search_highlighter, SearchHighlighter)

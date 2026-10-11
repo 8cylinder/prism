@@ -17,7 +17,7 @@ from textual.containers import Container, VerticalScroll
 from textual.reactive import var
 from textual.widgets import Footer, Header, Static, ListItem, ListView, Input
 
-from prism.renderers import RENDERERS
+from prism.renderers import RENDERERS, SourceCodeRenderer
 
 # Constants
 FileListState = Literal["narrow", "wide", "hidden"]
@@ -262,8 +262,8 @@ class Prism(App[None]):
         yield Header(show_clock=False)
         with Container():
             yield ListView(*items, id="file-list")
-            yield VerticalScroll(id="code-view")
             yield Input(placeholder="Find…", id="search-input")
+            yield VerticalScroll(id="code-view")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -351,13 +351,24 @@ class Prism(App[None]):
                         search_match_bgcolor=SEARCH_MATCH_HIGHLIGHT_BGCOLOR,
                         search_current_color=SEARCH_CURRENT_HIGHLIGHT_COLOR,
                         search_current_bgcolor=SEARCH_CURRENT_HIGHLIGHT_BGCOLOR,
+                        search_query=self._search_query,
                     )
 
                     # Scroll to the current search match if there is one
                     if 0 <= self._current_match_index < len(self._search_matches):
-                        match_line = self._search_matches[self._current_match_index][0]
-                        scroll_offset = self.size.height // SCROLL_OFFSET_RATIO
-                        scroll_y = match_line - scroll_offset
+                        if renderer is SourceCodeRenderer:
+                            match_line = self._search_matches[
+                                self._current_match_index
+                            ][0]
+                            scroll_offset = self.size.height // SCROLL_OFFSET_RATIO
+                            scroll_y = match_line - scroll_offset
+                        else:
+                            # Rendered output has no source-line mapping, so
+                            # scroll once the widget has rendered the highlight.
+                            self.call_after_refresh(
+                                self._scroll_to_rendered_match, _code_view
+                            )
+                            scroll_y = 0
 
                     # Calculate column position for editor if we have a match
                     if data.match_string and data.line_num > 0:
@@ -406,6 +417,24 @@ class Prism(App[None]):
                 self._error_title = f"ERROR: {type(e).__name__}"
         else:
             self._error_title = None
+
+    def _scroll_to_rendered_match(self, code_view: Static) -> None:
+        """Scroll a rendered document to its current search match.
+
+        Rendered view modes do not map matches to source lines, so the
+        highlighter records the rendered line of the current match while the
+        widget draws. This runs after the refresh that triggered that draw.
+        """
+        highlighter = getattr(code_view, "_search_highlighter", None)
+        if highlighter is None or highlighter.current_match_line is None:
+            return
+        try:
+            code_view_container = self.query_one("#code-view", VerticalScroll)
+        except Exception:
+            return
+        scroll_offset = self.size.height // SCROLL_OFFSET_RATIO
+        scroll_y = highlighter.current_match_line - scroll_offset
+        code_view_container.scroll_to(y=max(0, scroll_y), animate=False)
 
     def _compute_search_matches(self, file_path: Path) -> list[tuple[int, int, int]]:
         """Return (line, start, end) tuples for every match (case-insensitive)."""
