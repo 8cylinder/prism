@@ -1,11 +1,13 @@
 [project]
 name = "prism"
-version = "1.0.1"
+version = "1.2.0"
 description = "View files found with cli tools"
 readme = "README.md"
 authors = [
     {name = "Sheldon McGrandle", email = "developer@8cylinder.com"}
 ]
+license = "GPL-3.0-only"
+license-files = ["LICENSE"]
 classifiers = [
     'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
     'Operating System :: MacOS',
@@ -17,12 +19,19 @@ classifiers = [
 requires-python = ">=3.13"
 dependencies = [
     "click>=8.1.8",
-    "textual>=8.2.8",
     "html2text>=2024.2.26",
+    "platformdirs>=4.3.6",
+    "rich>=13.9.4",
+    "textual>=8.2.8",
 ]
 
 [project.scripts]
-prism = "prism:prism"
+prism = "prism.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/8cylinder/prism"
+Repository = "https://github.com/8cylinder/prism"
+Issues = "https://github.com/8cylinder/prism/issues"
 
 [build-system]
 requires = ["hatchling"]
@@ -30,9 +39,43 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
-    "black>=24.10.0",
-    "mypy>=1.14.1",
+    "myst-parser",
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=6",
+    "ruff",
+    "sphinx>=9",
+    "sphinx-click>=6",
     "textual-dev>=1.7.0",
-    "pytest>=8.3.0",
-    "pytest-asyncio>=0.24.0",
+    "ty",
 ]
+
+[tool.ruff]
+line-length = 80
+target-version = "py313"
+
+[tool.ruff.lint]
+extend-select = ["ANN", "PGH003", "PYI"]
+
+[tool.ty.rules]
+dynamic-function-decorator-return = "error"
+missing-type-argument = "error"
+possibly-unresolved-reference = "warn"
+unsound-return = "error"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config --cov=prism --cov-branch --cov-report=term-missing"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["prism"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true

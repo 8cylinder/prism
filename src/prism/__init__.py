@@ -1,1 +1,3 @@
-from .cli import prism
+from .cli import prism as prism
+
+__all__ = ["prism"]

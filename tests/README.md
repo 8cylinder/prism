@@ -1,100 +1,35 @@
-# Prism Tests
+# Prism tests
 
-This directory contains tests for the Prism TUI application.
+Tests use pytest, pytest-asyncio, and pytest-cov. Branch coverage must stay at
+or above 90%; the suite fails below that threshold.
 
-## Test Structure
+## Test files
 
-- `test_cli.py` - Tests for CLI argument parsing and input handling
-- `test_app.py` - Tests for the main Prism application functionality
-- `test_rendering.py` - Tests for different rendering modes (markdown, HTML, CSV/TSV)
-- `fixtures/` - Test fixture files for different file types
+- `test_cli.py` — CLI options, input parsing, color handling, and errors.
+- `test_config.py` — `config.toml`, legacy shortcuts, and `--config`.
+- `test_completions.py` — generated bash completion behavior and installation.
+- `test_app.py` — app startup, navigation, search, and key bindings.
+- `test_app_extra.py` — additional action and watcher branches.
+- `test_rendering.py` — rendering through the running Textual app.
+- `test_renderers.py` — individual renderers and error paths.
+- `test_git_hooks.py` — gitleaks pre-commit hook with a stub binary.
+- `fixtures/` — fixture files used by parsing and rendering tests.
 
-## Running Tests
+## Running tests
 
-Run all tests:
 ```bash
-uv run pytest
-```
-
-Run specific test file:
-```bash
+make test                 # all tests with branch coverage
+uv run pytest -v          # verbose
 uv run pytest tests/test_cli.py
-```
-
-Run specific test:
-```bash
 uv run pytest tests/test_cli.py::TestFilenameParsing::test_parse_plain_path
 ```
 
-Run with verbose output:
-```bash
-uv run pytest -v
-```
+Use `tmp_path` and `monkeypatch` for filesystem and environment changes.
+Tests must not read or write the real user configuration directory, touch the
+network, or require a real gitleaks binary.
 
-Run and show print statements:
-```bash
-uv run pytest -s
-```
+## Adding tests
 
-## Test Coverage
-
-### CLI Tests (`test_cli.py`)
-- ✅ Plain file path parsing
-- ✅ File path with line number
-- ✅ File path with line number and match string
-- ✅ File path with match string only
-- ✅ Relative paths
-- ✅ Match strings containing colons
-
-### App Tests (`test_app.py`)
-- ✅ App startup
-- ✅ File list population
-- ✅ File list state toggling (narrow/wide/hidden)
-- ✅ View mode toggling (source/markdown)
-- ✅ Word wrap toggling
-- ✅ Navigation (next/previous item)
-- ✅ FileListItem creation
-- ✅ FileData dataclass
-
-### Rendering Tests (`test_rendering.py`)
-
-#### Markdown Rendering
-- ✅ Markdown file detection (.md, .markdown)
-- ✅ Markdown rendering when view mode is active
-- ✅ Source code display when view mode is off
-
-#### HTML Rendering
-- ✅ HTML file detection (.html, .htm, .twig)
-- ✅ HTML to Markdown conversion using html2text
-- ✅ Source code display when view mode is off
-
-#### CSV/TSV Rendering (Future)
-- ⏭️ CSV file detection (.csv)
-- ⏭️ CSV rendering as DataTable
-- ⏭️ TSV file detection (.tsv)
-- ⏭️ TSV tab delimiter handling
-
-#### Source Code Rendering
-- ✅ Python syntax highlighting
-
-## Adding New Tests
-
-When adding new rendering modes or features:
-
-1. Add test fixture files to `fixtures/`
-2. Create test class in `test_rendering.py`
-3. Use `@pytest.mark.skip` for future features
-4. Remove skip marker when feature is implemented
-
-Example:
-```python
-class TestNewRendering:
-    """Test new file type rendering."""
-
-    @pytest.mark.skip(reason="Feature not yet implemented")
-    @pytest.mark.asyncio
-    async def test_new_rendering(self, fixtures_dir):
-        """Test that new file type is rendered."""
-        # Test implementation
-        pass
-```
+Add fixtures under `fixtures/` and coverage in the matching test module. When
+adding a renderer, test both the fresh-widget and reused-widget paths, plus
+parse errors.

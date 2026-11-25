@@ -1,29 +1,34 @@
 """Tests for the Prism TUI application."""
 
-import json
 from pathlib import Path
+
 import pytest
+from textual.widgets import Input, ListView
+
+from prism.config import AppConfig, Shortcut
 from prism.prism import (
-    Prism,
+    DEFAULT_BINDINGS,
     FileData,
     FileListItem,
-    load_keybindings,
-    DEFAULT_BINDINGS,
+    Prism,
+    bindings_from_shortcuts,
 )
 
 
 @pytest.fixture
-def fixtures_dir():
+def fixtures_dir() -> Path:
     """Return the path to the fixtures directory."""
     return Path(__file__).parent / "fixtures"
 
 
 @pytest.fixture
-def sample_files(fixtures_dir):
+def sample_files(fixtures_dir: Path) -> list[FileData]:
     """Create sample FileData for testing with real files."""
     return [
         FileData(file=fixtures_dir / "test.py", line_num=3, match_string="def"),
-        FileData(file=fixtures_dir / "test.md", line_num=1, match_string="Test"),
+        FileData(
+            file=fixtures_dir / "test.md", line_num=1, match_string="Test"
+        ),
         FileData(file=fixtures_dir / "test.html", line_num=0, match_string=""),
     ]
 
@@ -32,7 +37,7 @@ class TestPrismApp:
     """Test the main Prism application."""
 
     @pytest.mark.asyncio
-    async def test_app_starts(self, sample_files):
+    async def test_app_starts(self, sample_files: list[FileData]) -> None:
         """Test that the app starts successfully."""
         app = Prism(sample_files)
         async with app.run_test() as pilot:
@@ -40,13 +45,15 @@ class TestPrismApp:
             assert app.is_running
 
     @pytest.mark.asyncio
-    async def test_app_has_file_list(self, sample_files):
+    async def test_app_has_file_list(
+        self, sample_files: list[FileData]
+    ) -> None:
         """Test that the file list is populated."""
         app = Prism(sample_files)
         async with app.run_test() as pilot:
             await pilot.pause()  # Let app fully initialize
 
-            list_view = app.query_one("#file-list")
+            list_view = app.query_one("#file-list", ListView)
             assert list_view is not None
 
             # Check that list items were created
@@ -54,7 +61,9 @@ class TestPrismApp:
             assert len(items) == len(sample_files)
 
     @pytest.mark.asyncio
-    async def test_file_list_state_toggle(self, sample_files):
+    async def test_file_list_state_toggle(
+        self, sample_files: list[FileData]
+    ) -> None:
         """Test toggling file list width states."""
         app = Prism(sample_files)
         async with app.run_test() as pilot:
@@ -79,7 +88,7 @@ class TestPrismApp:
             assert app.file_list_state == "narrow"
 
     @pytest.mark.asyncio
-    async def test_view_mode_toggle(self, sample_files):
+    async def test_view_mode_toggle(self, sample_files: list[FileData]) -> None:
         """Test toggling between source and markdown view modes."""
         app = Prism(sample_files)
         async with app.run_test() as pilot:
@@ -99,7 +108,7 @@ class TestPrismApp:
             assert app.view_mode == "source"
 
     @pytest.mark.asyncio
-    async def test_word_wrap_toggle(self, sample_files):
+    async def test_word_wrap_toggle(self, sample_files: list[FileData]) -> None:
         """Test toggling word wrap."""
         app = Prism(sample_files)
         async with app.run_test() as pilot:
@@ -119,13 +128,15 @@ class TestPrismApp:
             assert app.word_wrap is False
 
     @pytest.mark.asyncio
-    async def test_navigation_next_item(self, sample_files):
+    async def test_navigation_next_item(
+        self, sample_files: list[FileData]
+    ) -> None:
         """Test navigating to next item."""
         app = Prism(sample_files)
         async with app.run_test() as pilot:
             await pilot.pause()  # Let app fully initialize
 
-            list_view = app.query_one("#file-list")
+            list_view = app.query_one("#file-list", ListView)
 
             # Start at first item
             initial_index = list_view.index
@@ -142,13 +153,15 @@ class TestPrismApp:
             assert list_view.index == 2
 
     @pytest.mark.asyncio
-    async def test_navigation_prev_item(self, sample_files):
+    async def test_navigation_prev_item(
+        self, sample_files: list[FileData]
+    ) -> None:
         """Test navigating to previous item."""
         app = Prism(sample_files)
         async with app.run_test() as pilot:
             await pilot.pause()  # Let app fully initialize
 
-            list_view = app.query_one("#file-list")
+            list_view = app.query_one("#file-list", ListView)
 
             # Move to second item first
             await pilot.press("j")
@@ -161,7 +174,7 @@ class TestPrismApp:
             assert list_view.index == 0
 
     @pytest.mark.asyncio
-    async def test_quit_app(self, sample_files):
+    async def test_quit_app(self, sample_files: list[FileData]) -> None:
         """Test quitting the app."""
         app = Prism(sample_files)
         async with app.run_test() as pilot:
@@ -174,7 +187,9 @@ class TestPrismApp:
             # App should stop running
 
     @pytest.mark.asyncio
-    async def test_binary_file_handling(self, fixtures_dir, tmp_path):
+    async def test_binary_file_handling(
+        self, fixtures_dir: Path, tmp_path: Path
+    ) -> None:
         """Test that binary files display a user-friendly message."""
         # Create a binary file with invalid UTF-8 bytes
         binary_file = tmp_path / "test.bin"
@@ -196,13 +211,15 @@ class TestSearch:
     """Test the find / find next functionality in the text view."""
 
     @pytest.mark.asyncio
-    async def test_search_shows_input_and_focuses(self, sample_files):
+    async def test_search_shows_input_and_focuses(
+        self, sample_files: list[FileData]
+    ) -> None:
         """slash reveals the search input and focuses it."""
         app = Prism(sample_files)
         async with app.run_test() as pilot:
             await pilot.pause()
 
-            search_input = app.query_one("#search-input")
+            search_input = app.query_one("#search-input", Input)
             assert search_input.display is False
 
             await pilot.press("slash")
@@ -213,7 +230,9 @@ class TestSearch:
             assert app.focused is search_input
 
     @pytest.mark.asyncio
-    async def test_typing_updates_matches(self, sample_files):
+    async def test_typing_updates_matches(
+        self, sample_files: list[FileData]
+    ) -> None:
         """Typing a query highlights every match and selects the first."""
         app = Prism(sample_files)
         async with app.run_test() as pilot:
@@ -235,7 +254,9 @@ class TestSearch:
             assert app._current_match_index == 0
 
     @pytest.mark.asyncio
-    async def test_search_is_case_insensitive(self, sample_files):
+    async def test_search_is_case_insensitive(
+        self, sample_files: list[FileData]
+    ) -> None:
         """Search matches are found regardless of case."""
         app = Prism(sample_files)
         async with app.run_test() as pilot:
@@ -250,7 +271,9 @@ class TestSearch:
             assert len(app._search_matches) == 4
 
     @pytest.mark.asyncio
-    async def test_find_next_cycles_matches(self, sample_files):
+    async def test_find_next_cycles_matches(
+        self, sample_files: list[FileData]
+    ) -> None:
         """ctrl-n advances the current match and wraps around."""
         app = Prism(sample_files)
         async with app.run_test() as pilot:
@@ -279,7 +302,9 @@ class TestSearch:
             assert app._current_match_index == 0
 
     @pytest.mark.asyncio
-    async def test_find_prev_cycles_matches(self, sample_files):
+    async def test_find_prev_cycles_matches(
+        self, sample_files: list[FileData]
+    ) -> None:
         """ctrl-p moves backwards through matches and wraps around."""
         app = Prism(sample_files)
         async with app.run_test() as pilot:
@@ -300,7 +325,9 @@ class TestSearch:
             assert app._current_match_index == 2
 
     @pytest.mark.asyncio
-    async def test_escape_clears_matches(self, sample_files):
+    async def test_escape_clears_matches(
+        self, sample_files: list[FileData]
+    ) -> None:
         """Escape clears matches and highlights but remembers the query."""
         app = Prism(sample_files)
         async with app.run_test() as pilot:
@@ -320,7 +347,9 @@ class TestSearch:
             assert not app.has_class("-searching")
 
     @pytest.mark.asyncio
-    async def test_search_reuses_last_string(self, sample_files):
+    async def test_search_reuses_last_string(
+        self, sample_files: list[FileData]
+    ) -> None:
         """slash after clearing defaults to the last used search string."""
         app = Prism(sample_files)
         async with app.run_test() as pilot:
@@ -336,13 +365,15 @@ class TestSearch:
             await pilot.press("slash")
             await pilot.pause()
 
-            search_input = app.query_one("#search-input")
+            search_input = app.query_one("#search-input", Input)
             assert search_input.value == "hello"
             assert app._search_query == "hello"
             assert len(app._search_matches) == 4
 
     @pytest.mark.asyncio
-    async def test_backspace_updates_matches(self, sample_files):
+    async def test_backspace_updates_matches(
+        self, sample_files: list[FileData]
+    ) -> None:
         """Backspace removes a character and updates the matches."""
         app = Prism(sample_files)
         async with app.run_test() as pilot:
@@ -359,7 +390,9 @@ class TestSearch:
             assert app._search_query == "hell"
 
     @pytest.mark.asyncio
-    async def test_enter_accepts_search(self, sample_files):
+    async def test_enter_accepts_search(
+        self, sample_files: list[FileData]
+    ) -> None:
         """Enter hides the input but keeps the matches and returns focus."""
         app = Prism(sample_files)
         async with app.run_test() as pilot:
@@ -376,23 +409,27 @@ class TestSearch:
             assert not app.has_class("-searching")
             assert app._search_query == "hello"
             assert len(app._search_matches) == 4
-            assert app.focused is app.query_one("#file-list")
+            assert app.focused is app.query_one("#file-list", ListView)
 
 
 class TestFileListItem:
     """Test the FileListItem widget."""
 
-    def test_file_list_item_creation(self):
+    def test_file_list_item_creation(self) -> None:
         """Test creating a FileListItem."""
-        file_data = FileData(file=Path("test.py"), line_num=10, match_string="hello")
+        file_data = FileData(
+            file=Path("test.py"), line_num=10, match_string="hello"
+        )
         item = FileListItem(file_data, is_last=False)
 
         assert item.data == file_data
         assert item.is_last is False
 
-    def test_file_list_item_last(self):
+    def test_file_list_item_last(self) -> None:
         """Test creating a FileListItem marked as last."""
-        file_data = FileData(file=Path("test.py"), line_num=10, match_string="hello")
+        file_data = FileData(
+            file=Path("test.py"), line_num=10, match_string="hello"
+        )
         item = FileListItem(file_data, is_last=True)
 
         assert item.is_last is True
@@ -401,7 +438,7 @@ class TestFileListItem:
 class TestFileData:
     """Test the FileData dataclass."""
 
-    def test_file_data_creation(self):
+    def test_file_data_creation(self) -> None:
         """Test creating FileData."""
         file_data = FileData(
             file=Path("test.py"), line_num=42, match_string="search term"
@@ -412,7 +449,7 @@ class TestFileData:
         assert file_data.match_string == "search term"
         assert file_data.column == 0  # default value
 
-    def test_file_data_with_column(self):
+    def test_file_data_with_column(self) -> None:
         """Test creating FileData with column position."""
         file_data = FileData(
             file=Path("test.py"), line_num=42, match_string="search", column=10
@@ -422,41 +459,59 @@ class TestFileData:
 
 
 class TestKeybindings:
-    """Test JSON keybindings loading and fallback logic."""
+    """Test conversion of configured shortcuts into Textual bindings."""
 
-    def test_load_default_keybindings(self):
-        """Test loading default keybindings from package JSON or defaults."""
-        bindings = load_keybindings()
-        assert len(bindings) > 0
-        actions = [b.action for b in bindings]
+    def test_default_keybindings(self) -> None:
+        """Test that a missing config selects the built-in bindings."""
+        bindings = bindings_from_shortcuts(None)
+        assert bindings == DEFAULT_BINDINGS
+        actions = [binding.action for binding in bindings]
         assert "toggle_files" in actions
         assert "edit_file" in actions
-
-    def test_load_custom_json_keybindings(self, tmp_path):
-        """Test loading keybindings from a custom JSON file."""
-        custom_json = tmp_path / "shortcuts.json"
-        custom_json.write_text(
-            json.dumps(
-                [
-                    {
-                        "key": "x",
-                        "action": "toggle_files",
-                        "description": "Custom Toggle",
-                    },
-                    {"key": "y", "action": "quit", "description": "Custom Quit"},
-                ]
-            )
+        assert "toggle_view_mode" in actions
+        render = next(
+            binding
+            for binding in bindings
+            if binding.action == "toggle_view_mode"
         )
-        bindings = load_keybindings(custom_json)
+        assert render.key == "m"
+
+    def test_custom_shortcuts(self) -> None:
+        """Test converting configured shortcuts."""
+        shortcuts = (
+            Shortcut("x", "toggle_files", "Custom Toggle"),
+            Shortcut("y", "quit", "Custom Quit"),
+        )
+        bindings = bindings_from_shortcuts(shortcuts)
         assert len(bindings) == 2
         assert bindings[0].key == "x"
         assert bindings[0].action == "toggle_files"
         assert bindings[1].key == "y"
         assert bindings[1].action == "quit"
 
-    def test_invalid_json_fallback(self, tmp_path):
-        """Test falling back to default bindings when JSON is invalid."""
-        invalid_json = tmp_path / "invalid.json"
-        invalid_json.write_text("{ invalid json ... }")
-        bindings = load_keybindings(invalid_json)
-        assert bindings == DEFAULT_BINDINGS
+    @pytest.mark.asyncio
+    async def test_app_uses_configured_shortcuts(
+        self, sample_files: list[FileData]
+    ) -> None:
+        """Test that configured keys are active in the running app."""
+        config = AppConfig(
+            shortcuts=(Shortcut("x", "toggle_files", "Toggle Files"),)
+        )
+        app = Prism(sample_files, config=config)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.press("x")
+            await pilot.pause()
+            assert app.file_list_state == "wide"
+
+    @pytest.mark.asyncio
+    async def test_app_uses_defaults_without_config(
+        self, sample_files: list[FileData]
+    ) -> None:
+        """Test that direct construction keeps the default key bindings."""
+        app = Prism(sample_files)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.press("m")
+            await pilot.pause()
+            assert app.view_mode == "markdown"

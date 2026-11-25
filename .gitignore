@@ -1,12 +1,36 @@
-# Python-generated files
+# Python
 __pycache__/
 *.py[oc]
+*.egg-info/
+.venv/
+venv/
 build/
 dist/
 wheels/
-*.egg-info
 
-# Virtual environments
-.venv
+# Tool caches
+.pytest_cache/
+.ruff_cache/
+.ty_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Sphinx
+docs/_build/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local files
 *OFF
 app-base.org

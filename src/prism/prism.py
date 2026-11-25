@@ -1,22 +1,22 @@
-from pathlib import Path
-import json
 import dataclasses
-import re
-from typing import Literal
 import os
+import re
+import shlex
 import subprocess
 import sys
-import shlex
+from pathlib import Path
+from typing import ClassVar, Literal
 
-from rich.traceback import Traceback
 from rich.text import Text
-
+from rich.traceback import Traceback
 from textual.app import App, ComposeResult
-from textual.binding import Binding
+from textual.binding import Binding, BindingsMap, BindingType
 from textual.containers import Container, VerticalScroll
+from textual.css.query import NoMatches, WrongType
 from textual.reactive import var
-from textual.widgets import Footer, Header, Static, ListItem, ListView, Input
+from textual.widgets import Footer, Header, Input, ListItem, ListView, Static
 
+from prism.config import AppConfig, Shortcut
 from prism.renderers import RENDERERS, SourceCodeRenderer
 
 # Constants
@@ -36,43 +36,33 @@ DEFAULT_BINDINGS = [
     Binding("m", "toggle_view_mode", "Render"),
     Binding("slash", "search", "Find"),
     Binding("ctrl+n", "search_next", "Find Next", show=False, priority=True),
-    Binding("ctrl+p", "search_prev", "Find Previous", show=False, priority=True),
-    Binding("escape", "clear_search", "Clear Search", show=False, priority=True),
+    Binding(
+        "ctrl+p", "search_prev", "Find Previous", show=False, priority=True
+    ),
+    Binding(
+        "escape", "clear_search", "Clear Search", show=False, priority=True
+    ),
     Binding("q", "quit", "Quit"),
 ]
 
 
-def load_keybindings(config_path: Path | str | None = None) -> list[Binding]:
-    """Load keybindings from JSON file with fallback to defaults."""
-    paths_to_check: list[Path] = []
-    if config_path:
-        paths_to_check.append(Path(config_path))
-
-    paths_to_check.append(Path.home() / ".config" / "prism" / "shortcuts.json")
-    paths_to_check.append(Path(__file__).parent / "shortcuts.json")
-
-    for path in paths_to_check:
-        if path.is_file():
-            try:
-                with open(path, "r", encoding="utf-8") as f:
-                    raw_data = json.load(f)
-                bindings = []
-                for item in raw_data:
-                    bindings.append(
-                        Binding(
-                            key=item["key"],
-                            action=item["action"],
-                            description=item["description"],
-                            show=item.get("show", True),
-                            key_display=item.get("key_display"),
-                            priority=item.get("priority", False),
-                        )
-                    )
-                return bindings
-            except Exception:
-                continue
-
-    return DEFAULT_BINDINGS
+def bindings_from_shortcuts(
+    shortcuts: tuple[Shortcut, ...] | None,
+) -> list[Binding]:
+    """Convert configured shortcuts into Textual bindings."""
+    if shortcuts is None:
+        return list(DEFAULT_BINDINGS)
+    return [
+        Binding(
+            key=shortcut.key,
+            action=shortcut.action,
+            description=shortcut.description,
+            show=shortcut.show,
+            key_display=shortcut.key_display,
+            priority=shortcut.priority,
+        )
+        for shortcut in shortcuts
+    ]
 
 
 SCROLL_OFFSET_RATIO = 3
@@ -154,7 +144,7 @@ class Prism(App[None]):
     """View files found."""
 
     CSS_PATH = "css/prism.tcss"
-    BINDINGS = load_keybindings()
+    BINDINGS: ClassVar[list[BindingType]] = list(DEFAULT_BINDINGS)
     ENABLE_COMMAND_PALETTE = False
 
     file_list_state: var[FileListState] = var("narrow")
@@ -162,7 +152,9 @@ class Prism(App[None]):
     view_mode: var[ViewMode] = var("source")
 
     def __init__(
-        self, files: list[FileData], config_path: Path | str | None = None
+        self,
+        files: list[FileData],
+        config: AppConfig | None = None,
     ) -> None:
         self.files = files
         self._rendering = False  # Flag to prevent re-entrant rendering
@@ -170,11 +162,16 @@ class Prism(App[None]):
         self._current_data: FileData | None = None
         self._search_query = ""  # Active search string
         self._last_search = ""  # Last submitted search string
-        self._search_matches: list[tuple[int, int, int]] = []  # (line, start, end)
+        self._search_matches: list[
+            tuple[int, int, int]
+        ] = []  # (line, start, end)
         self._current_match_index = -1
-        if config_path is not None:
-            self.BINDINGS = load_keybindings(config_path)
+        self._error_title: str | None = None
         super().__init__()
+        if config is not None and config.shortcuts is not None:
+            self._bindings = BindingsMap(
+                bindings_from_shortcuts(config.shortcuts)
+            )
 
     def watch_file_list_state(self, new_state: FileListState) -> None:
         """Called when file_list_state is modified."""
@@ -195,7 +192,7 @@ class Prism(App[None]):
             code_view_container = self.query_one("#code-view", VerticalScroll)
             if not code_view_container.is_mounted:
                 return
-        except Exception:
+        except (NoMatches, WrongType):
             return  # Not ready yet
 
         list_view = self.query_one(ListView)
@@ -217,7 +214,7 @@ class Prism(App[None]):
             code_view_container = self.query_one("#code-view", VerticalScroll)
             if not code_view_container.is_mounted:
                 return
-        except Exception:
+        except (NoMatches, WrongType):
             return  # Not ready yet
 
         list_view = self.query_one(ListView)
@@ -355,12 +352,18 @@ class Prism(App[None]):
                     )
 
                     # Scroll to the current search match if there is one
-                    if 0 <= self._current_match_index < len(self._search_matches):
+                    if (
+                        0
+                        <= self._current_match_index
+                        < len(self._search_matches)
+                    ):
                         if renderer is SourceCodeRenderer:
                             match_line = self._search_matches[
                                 self._current_match_index
                             ][0]
-                            scroll_offset = self.size.height // SCROLL_OFFSET_RATIO
+                            scroll_offset = (
+                                self.size.height // SCROLL_OFFSET_RATIO
+                            )
                             scroll_y = match_line - scroll_offset
                         else:
                             # Rendered output has no source-line mapping, so
@@ -384,7 +387,9 @@ class Prism(App[None]):
 
                     # Scroll to the appropriate position
                     if data.line_num > 0 or self._search_matches:
-                        code_view_container.scroll_to(y=max(0, scroll_y), animate=False)
+                        code_view_container.scroll_to(
+                            y=max(0, scroll_y), animate=False
+                        )
 
                     break  # Stop after first matching renderer
 
@@ -396,7 +401,7 @@ class Prism(App[None]):
             # Check if widget already exists, if so just update it
             try:
                 code_view = code_view_container.query_one("#code", Static)
-            except Exception:
+            except (NoMatches, WrongType):
                 # Widget doesn't exist, create and mount it
                 code_view = Static(id="code", expand=True)
                 code_view_container.mount(code_view)
@@ -405,14 +410,18 @@ class Prism(App[None]):
             if isinstance(e, UnicodeDecodeError):
                 message = Text()
                 message.append("\n\n")
-                message.append("  This file cannot be displayed  \n", style="bold red")
+                message.append(
+                    "  This file cannot be displayed  \n", style="bold red"
+                )
                 message.append("\n")
                 message.append(f"  {data.file.name}", style="dim")
                 message.append(" appears to be a binary file.\n", style="dim")
                 code_view.update(message)
                 self._error_title: str | None = "Binary file"
             else:
-                code_view.update(Traceback(theme=DEFAULT_TRACEBACK_THEME, width=None))
+                code_view.update(
+                    Traceback(theme=DEFAULT_TRACEBACK_THEME, width=None)
+                )
                 # Store error for title update after _rendering flag is cleared
                 self._error_title = f"ERROR: {type(e).__name__}"
         else:
@@ -430,13 +439,15 @@ class Prism(App[None]):
             return
         try:
             code_view_container = self.query_one("#code-view", VerticalScroll)
-        except Exception:
+        except (NoMatches, WrongType):
             return
         scroll_offset = self.size.height // SCROLL_OFFSET_RATIO
         scroll_y = highlighter.current_match_line - scroll_offset
         code_view_container.scroll_to(y=max(0, scroll_y), animate=False)
 
-    def _compute_search_matches(self, file_path: Path) -> list[tuple[int, int, int]]:
+    def _compute_search_matches(
+        self, file_path: Path
+    ) -> list[tuple[int, int, int]]:
         """Return (line, start, end) tuples for every match (case-insensitive)."""
         matches: list[tuple[int, int, int]] = []
         if not self._search_query:
@@ -577,7 +588,9 @@ class Prism(App[None]):
         if current_index is None:
             return
         children = [
-            child for child in list_view.children if isinstance(child, FileListItem)
+            child
+            for child in list_view.children
+            if isinstance(child, FileListItem)
         ]
         for i, child in enumerate(children):
             if i > current_index and child.data.file != current_file:
@@ -596,7 +609,9 @@ class Prism(App[None]):
         if current_index is None:
             return
         children = [
-            child for child in list_view.children if isinstance(child, FileListItem)
+            child
+            for child in list_view.children
+            if isinstance(child, FileListItem)
         ]
         # Scan backward to find the file group immediately before the current one
         prev_file = None
@@ -625,7 +640,9 @@ class Prism(App[None]):
             if "emacs" in editor_parts[0].lower() and item.data.line_num:
                 if item.data.column:
                     # Jump to specific line and column: +linenum:column
-                    editor_parts.append(f"+{item.data.line_num}:{item.data.column}")
+                    editor_parts.append(
+                        f"+{item.data.line_num}:{item.data.column}"
+                    )
                 else:
                     # Jump to line only: +linenum
                     editor_parts.append(f"+{item.data.line_num}")
@@ -636,6 +653,7 @@ class Prism(App[None]):
                 # Pass terminal handles explicitly so editor can interact with terminal
                 subprocess.run(
                     editor_parts,
+                    check=False,
                     stdin=sys.__stdin__,
                     stdout=sys.stdout,
                     stderr=sys.stderr,

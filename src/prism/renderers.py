@@ -1,26 +1,27 @@
 """Renderer system for different file types."""
 
+import csv
+import json
+import re
 from pathlib import Path
-from typing import Protocol, Literal
-from textual.widget import Widget
-from textual.widgets import Static, DataTable
-from textual.containers import VerticalScroll
-from textual._node_list import DuplicateIds
-from rich.syntax import Syntax
-from rich.markdown import Markdown
-from rich.style import Style
-from rich.json import JSON
-from rich.text import Text
+from typing import Literal, Protocol
+
+import html2text
 from rich.console import (
     Console,
     ConsoleOptions,
     RenderableType,
     RenderResult,
 )
-import html2text
-import re
-import csv
-import json
+from rich.json import JSON
+from rich.markdown import Markdown
+from rich.style import Style
+from rich.syntax import Syntax
+from rich.text import Text
+from textual.containers import VerticalScroll
+from textual.css.query import NoMatches, WrongType
+from textual.widget import Widget
+from textual.widgets import DataTable, Static
 
 ViewMode = Literal["source", "markdown"]
 
@@ -33,7 +34,9 @@ def _make_search_styles(
 ) -> tuple[Style, Style]:
     """Build the styles used for search matches and the current match."""
     match_style = Style(color=match_color, bgcolor=match_bgcolor)
-    current_style = Style(color=current_color, bgcolor=current_bgcolor, bold=True)
+    current_style = Style(
+        color=current_color, bgcolor=current_bgcolor, bold=True
+    )
     return match_style, current_style
 
 
@@ -124,10 +127,8 @@ def apply_search_highlight(
 
 def _set_highlighter(widget: Static, renderable: RenderableType) -> None:
     """Record the search highlighter on a widget so the app can scroll to it."""
-    setattr(
-        widget,
-        "_search_highlighter",
-        renderable if isinstance(renderable, SearchHighlighter) else None,
+    widget._search_highlighter = (  # ty: ignore[missing-attribute]
+        renderable if isinstance(renderable, SearchHighlighter) else None
     )
 
 
@@ -272,7 +273,7 @@ class MarkdownRenderer:
         try:
             code_view = container.query_one("#code", Static)
             code_view.update(markdown)
-        except Exception:
+        except (NoMatches, WrongType):
             # Widget doesn't exist or is wrong type - clear and create new one
             for widget in list(container.children):
                 widget.remove()
@@ -340,7 +341,7 @@ class HTMLRenderer:
         try:
             code_view = container.query_one("#code", Static)
             code_view.update(markdown)
-        except Exception:
+        except (NoMatches, WrongType):
             # Widget doesn't exist or is wrong type - clear and create new one
             for widget in list(container.children):
                 widget.remove()
@@ -403,7 +404,7 @@ class JSONRenderer:
             try:
                 code_view = container.query_one("#code", Static)
                 code_view.update(json_renderable)
-            except Exception:
+            except (NoMatches, WrongType):
                 # Widget doesn't exist or is wrong type - clear and create new one
                 for widget in list(container.children):
                     widget.remove()
@@ -419,7 +420,7 @@ class JSONRenderer:
             # Try to reuse existing Static widget with id='code' or create new one
             try:
                 error_view = container.query_one("#code", Static)
-            except Exception:
+            except (NoMatches, WrongType):
                 # No Static widget exists - clean up and create new one
                 for widget in list(container.children):
                     widget.remove()
@@ -433,7 +434,8 @@ class JSONRenderer:
             message.append(f"  {file_path.name}", style="dim")
             message.append(" cannot be parsed as JSON.\n", style="dim")
             message.append(
-                f"\n  Error at line {e.lineno}, column {e.colno}:\n", style="italic dim"
+                f"\n  Error at line {e.lineno}, column {e.colno}:\n",
+                style="italic dim",
             )
             message.append(f"  {e.msg}\n", style="italic dim")
             error_view.update(message)
@@ -446,7 +448,10 @@ class TableRenderer:
 
     @staticmethod
     def can_render(file_path: Path, view_mode: ViewMode) -> bool:
-        return view_mode == "markdown" and file_path.suffix.lower() in {".csv", ".tsv"}
+        return view_mode == "markdown" and file_path.suffix.lower() in {
+            ".csv",
+            ".tsv",
+        }
 
     @staticmethod
     def render(
@@ -469,7 +474,7 @@ class TableRenderer:
         search_current_color: str = "white",
         search_current_bgcolor: str = "bright_red",
         search_query: str = "",
-    ) -> tuple[DataTable | Static, int]:
+    ) -> tuple[DataTable[object] | Static, int]:
         """Render CSV/TSV file as a DataTable."""
         from rich.text import Text
 
@@ -487,9 +492,9 @@ class TableRenderer:
 
             # Check if we can reuse existing DataTable, otherwise clear and create new
             try:
-                table = container.query_one(DataTable)
+                table: DataTable[object] = container.query_one(DataTable)
                 table.clear()
-            except Exception:
+            except (NoMatches, WrongType):
                 # Widget doesn't exist or container has wrong type - clear and create new
                 for widget in list(container.children):
                     widget.remove()
@@ -547,7 +552,7 @@ class TableRenderer:
             # Try to reuse existing Static widget with id='code' or create new one
             try:
                 error_view = container.query_one("#code", Static)
-            except Exception:
+            except (NoMatches, WrongType):
                 # No Static widget exists - clean up and create new one
                 for widget in list(container.children):
                     widget.remove()
@@ -562,7 +567,7 @@ class TableRenderer:
             message.append(
                 f" cannot be displayed as a {file_type} table.\n", style="dim"
             )
-            message.append(f"\n  Error: {str(e)}\n", style="italic dim")
+            message.append(f"\n  Error: {e!s}\n", style="italic dim")
             error_view.update(message)
 
             return error_view, 0
@@ -598,8 +603,9 @@ class OrgRenderer:
         search_query: str = "",
     ) -> tuple[Static, int]:
         """Render Org file by exporting to Markdown via Emacs."""
-        import subprocess
         import shutil
+        import subprocess
+
         from rich.text import Text
 
         abs_path = str(file_path.resolve())
@@ -634,6 +640,7 @@ class OrgRenderer:
             )
             result = subprocess.run(
                 ["emacs", "--batch", "--eval", elisp],
+                check=False,
                 capture_output=True,
                 timeout=15,
             )
@@ -642,7 +649,7 @@ class OrgRenderer:
                 # Emacs export failed - show error
                 try:
                     error_view = container.query_one("#code", Static)
-                except Exception:
+                except (NoMatches, WrongType):
                     for widget in list(container.children):
                         widget.remove()
                     error_view = Static(id="code", expand=True)
@@ -653,7 +660,9 @@ class OrgRenderer:
                 message.append("  Org export failed  \n", style="bold red")
                 message.append("\n")
                 message.append(f"  {file_path.name}", style="dim")
-                message.append(" could not be exported via Emacs.\n", style="dim")
+                message.append(
+                    " could not be exported via Emacs.\n", style="dim"
+                )
                 stderr = result.stderr.decode("utf-8", errors="replace").strip()
                 if stderr:
                     message.append(f"\n  {stderr}\n", style="italic dim")
@@ -692,7 +701,7 @@ class OrgRenderer:
         try:
             code_view = container.query_one("#code", Static)
             code_view.update(markdown)
-        except Exception:
+        except (NoMatches, WrongType):
             for widget in list(container.children):
                 widget.remove()
             code_view = Static(id="code", expand=True)
@@ -751,7 +760,7 @@ class SourceCodeRenderer:
         # Check if widget already exists, if so just update it
         try:
             code_view = container.query_one("#code", Static)
-        except Exception:
+        except (NoMatches, WrongType):
             # Widget doesn't exist or is wrong type - clear and create new one
             for widget in list(container.children):
                 widget.remove()
@@ -771,12 +780,16 @@ class SourceCodeRenderer:
                         if m:
                             pos = m.span()
                             syntax.stylize_range(
-                                other_style, (other_line, pos[0]), (other_line, pos[1])
+                                other_style,
+                                (other_line, pos[0]),
+                                (other_line, pos[1]),
                             )
                             continue
                     # Fallback: no match string or not found — highlight whole line
                     syntax.stylize_range(
-                        other_style, (other_line, 0), (other_line, len(line_text))
+                        other_style,
+                        (other_line, 0),
+                        (other_line, len(line_text)),
                     )
 
         # Highlight the match text on the current line with primary color
@@ -790,7 +803,9 @@ class SourceCodeRenderer:
                     color=match_highlight_color,
                     bgcolor=match_highlight_bgcolor,
                 )
-                syntax.stylize_range(highlight, (line_num, pos[0]), (line_num, pos[1]))
+                syntax.stylize_range(
+                    highlight, (line_num, pos[0]), (line_num, pos[1])
+                )
 
         # Highlight all search matches, emphasizing the current one
         if search_matches:
@@ -816,7 +831,6 @@ class SourceCodeRenderer:
         _set_highlighter(code_view, syntax)
 
         # Calculate scroll position
-        from textual.app import App
 
         app = container.app
         scroll_offset = app.size.height // scroll_offset_ratio

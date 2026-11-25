@@ -1,217 +1,114 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when
-working with code in this repository.
+This file provides guidance to coding agents working in this repository.
 
-## Project Overview
+## Project overview
 
-Prism is a TUI (Terminal User Interface) application for viewing and
-navigating files found via CLI search tools (find, rg, grep). It
-displays search results in a split-pane interface: a file list on the
-left and syntax-highlighted file contents on the right.
+Prism is a TUI for viewing and navigating files found with CLI search tools
+(`find`, `rg`, `grep`). It shows a file list on the left and
+syntax-highlighted or rendered file contents on the right.
 
-**Key dependencies:**
-- `textual` - TUI framework (version 8.2.8+)
-  - `textual reference` - https://textual.textualize.io/reference/
-  - `textual widget docs` - https://textual.textualize.io/widget_gallery/
-- `click` - CLI argument parsing
-- `rich` - Syntax highlighting and terminal formatting
+Key dependencies:
 
+- `textual` for the TUI.
+- `click` for the CLI.
+- `rich` for console output and rendering.
+- `platformdirs` for the user configuration path.
 
-## Coding standards
-- All code must have black run on it
-- Type checking with mypy must pass
-- All tests must pass with pytest
-- Follow Textual best practices: use CSS for styling, not hardcoded colors in Python
-
-## Development Commands
+## Development commands
 
 ```bash
-# Setup environment
-uv sync
-
-# Run the application
-uv run prism -h
-
-# Development mode with live reload
-uv run textual run --dev prism:prism -h
-
-# Start textual console for debugging (in separate terminal)
-uv run textual console -x event
-
-# Code formatting
-uv run black src/
-
-# Type checking
-uv run mypy src/
-
-# Run tests
-uv run pytest              # Run all tests
-uv run pytest -v           # Verbose output
-uv run pytest tests/test_cli.py  # Run specific test file
+make sync        # install dependencies
+make fmt         # format with ruff
+make fmt-check   # check formatting
+make lint        # lint and apply safe fixes
+make lint-check  # lint without changes
+make type        # type-check with ty
+make test        # run tests with branch coverage
+make check       # all checks without modifying files
+make man         # build docs/_build/man/prism.1
+make build       # build the wheel and sdist
 ```
 
-## Architecture
+Run a single test with:
 
-### Entry Point Flow
-1. `src/prism/__init__.py` - Exports the main `prism` function from
-   cli module
-2. `src/prism/cli.py` - CLI interface using Click, handles
-   stdin/argument parsing
-3. `src/prism/prism.py` - Textual app implementation with UI
-   components
-
-### Input Parsing (`cli.py`)
-The application accepts input in two ways:
-- **Piped stdin**: `rg pattern | prism` (reopens stdin from `/dev/tty`
-  for Textual at line 113)
-- **Command arguments**: `prism file1.py file2.py`
-
-Supported input formats (parsed in `parse_filename()`):
-- Plain paths: `/path/to/file`
-- With match string: `/path/to/file:match_string`
-- With line number: `/path/to/file:123:match_string`
-
-### Configuration Constants (prism.py:19-25)
-The following constants at the top of `prism.py` control styling and behavior:
-- `DEFAULT_SYNTAX_THEME` - Theme for syntax highlighting ("github-dark")
-- `DEFAULT_TRACEBACK_THEME` - Theme for error tracebacks
-- `SCROLL_OFFSET_RATIO` - Controls scroll position when highlighting a line (3 = 1/3 screen height)
-- `MATCH_HIGHLIGHT_COLOR`, `MATCH_HIGHLIGHT_BGCOLOR` - Colors for highlighting matched text
-
-### Data Model
-`FileData` dataclass (prism.py:28-31) represents each file entry:
-- `file: Path` - File path
-- `line_num: int` - Line number to highlight (0 if none)
-- `match_string: str` - Text to highlight within the line
-
-### UI Components (`prism.py`)
-
-**Main App: `Prism(App[None])`** (line 56)
-- Two-pane layout: `ListView` (file list) + `VerticalScroll` (code viewer)
-- Reactive variable `file_list_state` cycles through three width states:
-  - `"narrow"` - 20% width
-  - `"wide"` - 80% width
-  - `"hidden"` - 0% width (invisible)
-- Key bindings: `l` (toggle light/dark), `f` (toggle file list width), `e` (edit file), `q` (quit)
-
-**Custom Widget: `FileListItem(ListItem)`** (line 34)
-- Uses CSS classes for styling instead of hardcoded Rich markup:
-  - `.file-parent` - Parent directory path
-  - `.file-name` - Filename
-  - `.line-number` - Line number indicator
-- Odd/even classes are properly applied for alternating row colors
-- Stores `FileData` for access on selection
-
-**Event Handling:**
-- `on_list_view_highlighted()` (line 110): Updates code view when file selected
-  - Type-checks event.item to ensure it's a FileListItem
-  - Loads syntax highlighting via `rich.syntax.Syntax`
-  - Highlights the specified line
-  - Uses regex to find and highlight the match string within the line
-  - Auto-scrolls to position highlighted line based on `SCROLL_OFFSET_RATIO`
-  - Error handling: catches `OSError` (file read errors), `UnicodeDecodeError` (binary files), `IndexError` (invalid line numbers)
-
-**Styling:**
-- Uses Textual CSS (TCSS) in `src/prism/css/prism.tcss`
-- File list width states controlled by classes: `.-files-narrow`, `.-files-wide`, `.-files-hidden`
-- Alternating row colors via `FileListItem.odd` and `FileListItem.even` classes
-- All colors use Textual theme variables (`$primary-background-darken-1`, `$accent`, `$success`, etc.)
-- Syntax theme controlled by `DEFAULT_SYNTAX_THEME` constant
-
-### Editor Integration
-The `action_edit_file()` (line 166) uses `subprocess.run()` for security:
-- Respects `$EDITOR` environment variable (defaults to "nano")
-- Uses `shlex.split()` to safely parse editor commands with arguments
-- Type-checks to ensure the selected item is a `FileListItem`
-- Suspends the TUI while editing, then resumes
-
-## Common Patterns
-
-**Testing input parsing:**
-Use `--debug-data` flag to see parsed FileData without launching TUI:
 ```bash
-echo "src/prism/cli.py:42:some text" | uv run prism --debug-data
-```
-
-**Null-terminated input:**
-For filenames with spaces or special characters:
-```bash
-find . -name "*.py" -print0 | prism --null
-```
-
-## Project Structure
-```
-src/prism/
-├── __init__.py          # Package entry point
-├── cli.py               # Click CLI, input parsing
-├── prism.py             # Textual app and UI widgets
-└── css/
-    └── prism.tcss       # Textual CSS styling
-
-tests/
-├── __init__.py          # Test package
-├── test_cli.py          # CLI parsing tests
-├── test_app.py          # App functionality tests
-├── test_rendering.py    # Rendering mode tests
-├── README.md            # Test documentation
-└── fixtures/            # Test fixture files
-    ├── test.md          # Markdown test file
-    ├── test.html        # HTML test file
-    ├── test.csv         # CSV test file
-    ├── test.tsv         # TSV test file
-    └── test.py          # Python test file
-```
-
-## Testing
-
-The project uses pytest for testing. Tests are organized by functionality:
-
-### Test Files
-- **test_cli.py** - Tests for CLI argument parsing and input handling
-  - Tests various input formats (plain paths, with line numbers, with match strings)
-  - Uses real fixture files to test file existence validation
-- **test_app.py** - Tests for the main Prism application
-  - App startup and initialization
-  - File list population and navigation
-  - Key bindings (toggle states, navigation, word wrap)
-  - FileData and FileListItem functionality
-- **test_rendering.py** - Tests for different rendering modes
-  - Markdown rendering (.md, .markdown files)
-  - HTML rendering (.html, .htm, .twig files)
-  - CSV/TSV rendering (marked as @pytest.mark.skip for future implementation)
-  - Source code syntax highlighting
-
-### Running Tests
-```bash
-# Run all tests
-uv run pytest
-
-# Run with verbose output
-uv run pytest -v
-
-# Run specific test file
-uv run pytest tests/test_rendering.py
-
-# Run specific test
 uv run pytest tests/test_cli.py::TestFilenameParsing::test_parse_plain_path
 ```
 
-### Adding New Rendering Modes
-When adding a new rendering mode:
-1. Add test fixture files to `tests/fixtures/`
-2. Create test class in `tests/test_rendering.py`
-3. Initially mark tests with `@pytest.mark.skip(reason="Feature not yet implemented")`
-4. Implement the feature
-5. Remove the skip marker
-6. All tests should pass
+`make hooks` installs the gitleaks pre-commit hook. It is run once per clone.
+`make secrets` scans the full history and is also run in CI.
 
-Example:
-```python
-@pytest.mark.skip(reason="JSON rendering not yet implemented")
-@pytest.mark.asyncio
-async def test_json_rendering(self, fixtures_dir):
-    """Test that JSON files are rendered."""
-    json_file = fixtures_dir / "test.json"
-    # Test implementation
-```
+## Standards
+
+- Format and lint with ruff (`line-length = 80`); do not add black or mypy.
+- Type-check with ty. Use targeted `# ty: ignore[rule]` comments only; do not
+  add blanket `# type: ignore` comments.
+- Tests use pytest and pytest-asyncio. Branch coverage must stay at or above
+  90%; `pytest` fails below that threshold.
+- Use `src/` for application code and `tests/` for tests.
+- Do not modify files outside this repository or write to the real user home
+  directory in tests. Use `tmp_path` and `monkeypatch` with `XDG_CONFIG_HOME`,
+  `XDG_DATA_HOME`, and `HOME`.
+
+## Entry point and CLI
+
+`src/prism/cli.py` defines the `prism` Click command, the `main()` entry point
+used by `pyproject.toml`, input parsing, and global options:
+
+- `--null/--no-null`
+- `--debug-data`
+- `--color [auto|always|never]`
+- `--config`
+- `--completions`
+- `--version`
+- `-h/--help`
+
+Keep the CLI layer thin: parse and validate input in `cli.py`; put behavior in
+the app and helper modules. Errors go to stderr. `--version`, `--config`, and
+`--completions` must produce plain output with no ANSI codes.
+
+## Configuration
+
+`src/prism/config.py` loads `config.toml` from
+`platformdirs.user_config_dir("prism")`. The file may contain a
+`[[shortcuts]]` list. Precedence is `config.toml`, the legacy
+`shortcuts.json` (warned about), then `DEFAULT_BINDINGS` in `prism.py`.
+Unknown keys warn and are ignored; invalid TOML is a fatal error naming the
+path.
+
+`src/prism/completions.py` generates and installs a static bash completion
+script. Bash 4.4 or newer is required. The output path goes to stdout; the
+`source` hint and warnings go to stderr.
+
+## Application
+
+`src/prism/prism.py` contains the Textual app:
+
+- `FileData` describes a file, line number, match string, and editor column.
+- `FileListItem` renders one row of the file list.
+- `Prism` composes the header, list, search input, code view, and footer.
+- Key bindings: `f` cycles the file list, `e` edits, `n/j` and `p/k` move
+  between results, `right/i` and `left/u` move between files, `w` toggles word
+  wrap, `m` toggles rendered view, `/` searches, `q` quits.
+
+`src/prism/renderers.py` holds the renderer registry. Specific renderers run
+first; `SourceCodeRenderer` is the fallback. Markdown, HTML, JSON, CSV, TSV,
+and Org files render when the view mode is `markdown`.
+
+`src/prism/css/prism.tcss` holds all styling. Use Textual CSS theme variables
+rather than hard-coded colors in Python.
+
+## Tests
+
+Tests are organized by area:
+
+- `tests/test_cli.py` — CLI options, parsing, color, errors.
+- `tests/test_config.py` — TOML and legacy config loading, `--config`.
+- `tests/test_completions.py` — generated script behavior and installation.
+- `tests/test_app.py` / `tests/test_app_extra.py` — TUI behavior and actions.
+- `tests/test_rendering.py` / `tests/test_renderers.py` — rendering modes.
+- `tests/test_git_hooks.py` — gitleaks pre-commit hook with a stub binary.
+- `tests/fixtures/` — fixture files for rendering and parsing tests.
+
+Add fixtures under `tests/fixtures/` when adding a new file type or renderer.

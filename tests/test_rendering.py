@@ -1,13 +1,18 @@
 """Tests for different rendering modes (markdown, HTML, CSV/TSV)."""
 
 from pathlib import Path
+
 import pytest
+from rich.console import RenderableType
+from rich.text import Text
 from textual.widgets import Static
-from prism.prism import Prism, FileData
+
+from prism.prism import FileData, Prism
+from prism.renderers import SearchHighlighter
 
 
 @pytest.fixture
-def fixtures_dir():
+def fixtures_dir() -> Path:
     """Return the path to the fixtures directory."""
     return Path(__file__).parent / "fixtures"
 
@@ -16,7 +21,7 @@ class TestMarkdownRendering:
     """Test markdown file rendering."""
 
     @pytest.mark.asyncio
-    async def test_markdown_file_detected(self, fixtures_dir):
+    async def test_markdown_file_detected(self, fixtures_dir: Path) -> None:
         """Test that .md files are detected as markdown."""
         md_file = fixtures_dir / "test.md"
         files = [FileData(file=md_file, line_num=0, match_string="")]
@@ -31,7 +36,7 @@ class TestMarkdownRendering:
             assert is_markdown
 
     @pytest.mark.asyncio
-    async def test_markdown_rendering_enabled(self, fixtures_dir):
+    async def test_markdown_rendering_enabled(self, fixtures_dir: Path) -> None:
         """Test that markdown is rendered when view mode is active."""
         md_file = fixtures_dir / "test.md"
         files = [FileData(file=md_file, line_num=0, match_string="")]
@@ -49,7 +54,9 @@ class TestMarkdownRendering:
             assert code_view is not None
 
     @pytest.mark.asyncio
-    async def test_markdown_rendering_disabled(self, fixtures_dir):
+    async def test_markdown_rendering_disabled(
+        self, fixtures_dir: Path
+    ) -> None:
         """Test that markdown is shown as source when view mode is off."""
         md_file = fixtures_dir / "test.md"
         files = [FileData(file=md_file, line_num=0, match_string="")]
@@ -70,7 +77,7 @@ class TestHTMLRendering:
     """Test HTML file rendering."""
 
     @pytest.mark.asyncio
-    async def test_html_file_detected(self, fixtures_dir):
+    async def test_html_file_detected(self, fixtures_dir: Path) -> None:
         """Test that .html files are detected."""
         html_file = fixtures_dir / "test.html"
         files = [FileData(file=html_file, line_num=0, match_string="")]
@@ -85,7 +92,9 @@ class TestHTMLRendering:
             assert is_html
 
     @pytest.mark.asyncio
-    async def test_html_rendering_uses_html2text(self, fixtures_dir):
+    async def test_html_rendering_uses_html2text(
+        self, fixtures_dir: Path
+    ) -> None:
         """Test that HTML files are converted using html2text."""
         html_file = fixtures_dir / "test.html"
         files = [FileData(file=html_file, line_num=0, match_string="")]
@@ -103,7 +112,7 @@ class TestHTMLRendering:
             assert code_view is not None
 
     @pytest.mark.asyncio
-    async def test_html_rendering_disabled(self, fixtures_dir):
+    async def test_html_rendering_disabled(self, fixtures_dir: Path) -> None:
         """Test that HTML is shown as source when view mode is off."""
         html_file = fixtures_dir / "test.html"
         files = [FileData(file=html_file, line_num=0, match_string="")]
@@ -124,7 +133,7 @@ class TestCSVRendering:
     """Test CSV/TSV file rendering."""
 
     @pytest.mark.asyncio
-    async def test_csv_file_detected(self, fixtures_dir):
+    async def test_csv_file_detected(self, fixtures_dir: Path) -> None:
         """Test that .csv files are detected."""
         csv_file = fixtures_dir / "test.csv"
         files = [FileData(file=csv_file, line_num=0, match_string="")]
@@ -141,7 +150,7 @@ class TestCSVRendering:
             assert is_csv
 
     @pytest.mark.asyncio
-    async def test_csv_rendering_as_table(self, fixtures_dir):
+    async def test_csv_rendering_as_table(self, fixtures_dir: Path) -> None:
         """Test that CSV files are rendered as DataTable."""
         from textual.widgets import DataTable
 
@@ -159,7 +168,7 @@ class TestCSVRendering:
             assert table is not None
 
     @pytest.mark.asyncio
-    async def test_tsv_file_detected(self, fixtures_dir):
+    async def test_tsv_file_detected(self, fixtures_dir: Path) -> None:
         """Test that .tsv files are detected."""
         tsv_file = fixtures_dir / "test.tsv"
         files = [FileData(file=tsv_file, line_num=0, match_string="")]
@@ -176,7 +185,9 @@ class TestCSVRendering:
             assert is_tsv
 
     @pytest.mark.asyncio
-    async def test_tsv_rendering_uses_tab_delimiter(self, fixtures_dir):
+    async def test_tsv_rendering_uses_tab_delimiter(
+        self, fixtures_dir: Path
+    ) -> None:
         """Test that TSV files use tab delimiter."""
         from textual.widgets import DataTable
 
@@ -196,7 +207,7 @@ class TestCSVRendering:
             assert len(table.columns) > 0
 
     @pytest.mark.asyncio
-    async def test_csv_with_comments_renders(self, fixtures_dir):
+    async def test_csv_with_comments_renders(self, fixtures_dir: Path) -> None:
         """Test that CSV files with # comments render correctly."""
         from textual.widgets import DataTable
 
@@ -218,7 +229,7 @@ class TestCSVRendering:
             assert table.row_count == 3
 
     @pytest.mark.asyncio
-    async def test_tsv_with_comments_renders(self, fixtures_dir):
+    async def test_tsv_with_comments_renders(self, fixtures_dir: Path) -> None:
         """Test that TSV files with # comments render correctly."""
         from textual.widgets import DataTable
 
@@ -240,7 +251,7 @@ class TestCSVRendering:
             assert table.row_count == 3
 
     @pytest.mark.asyncio
-    async def test_invalid_csv_shows_error(self, fixtures_dir):
+    async def test_invalid_csv_shows_error(self, fixtures_dir: Path) -> None:
         """Test that invalid CSV files show an error message."""
         csv_file = fixtures_dir / "invalid.csv"
         files = [FileData(file=csv_file, line_num=0, match_string="")]
@@ -258,7 +269,7 @@ class TestCSVRendering:
             assert "invalid.csv" in app.title.lower() or app.title != ""
 
     @pytest.mark.asyncio
-    async def test_invalid_tsv_shows_error(self, fixtures_dir):
+    async def test_invalid_tsv_shows_error(self, fixtures_dir: Path) -> None:
         """Test that invalid TSV files show an error message."""
         tsv_file = fixtures_dir / "invalid.tsv"
         files = [FileData(file=tsv_file, line_num=0, match_string="")]
@@ -280,7 +291,7 @@ class TestJSONRendering:
     """Test JSON file rendering."""
 
     @pytest.mark.asyncio
-    async def test_json_file_detected(self, fixtures_dir):
+    async def test_json_file_detected(self, fixtures_dir: Path) -> None:
         """Test that .json files are detected."""
         json_file = fixtures_dir / "test.json"
         files = [FileData(file=json_file, line_num=0, match_string="")]
@@ -297,7 +308,7 @@ class TestJSONRendering:
             assert is_json
 
     @pytest.mark.asyncio
-    async def test_json_rendering_enabled(self, fixtures_dir):
+    async def test_json_rendering_enabled(self, fixtures_dir: Path) -> None:
         """Test that JSON files are rendered in markdown mode."""
         json_file = fixtures_dir / "test.json"
         files = [FileData(file=json_file, line_num=0, match_string="")]
@@ -315,7 +326,7 @@ class TestJSONRendering:
             assert code_view is not None
 
     @pytest.mark.asyncio
-    async def test_json_rendering_disabled(self, fixtures_dir):
+    async def test_json_rendering_disabled(self, fixtures_dir: Path) -> None:
         """Test that JSON files show source code in source mode."""
         json_file = fixtures_dir / "test.json"
         files = [FileData(file=json_file, line_num=0, match_string="")]
@@ -332,7 +343,7 @@ class TestJSONRendering:
             assert code_view is not None
 
     @pytest.mark.asyncio
-    async def test_invalid_json_shows_error(self, fixtures_dir):
+    async def test_invalid_json_shows_error(self, fixtures_dir: Path) -> None:
         """Test that invalid JSON files show an error message."""
         json_file = fixtures_dir / "invalid.json"
         files = [FileData(file=json_file, line_num=0, match_string="")]
@@ -354,7 +365,7 @@ class TestOrgRendering:
     """Test Emacs Org file rendering."""
 
     @pytest.mark.asyncio
-    async def test_org_file_detected(self, fixtures_dir):
+    async def test_org_file_detected(self, fixtures_dir: Path) -> None:
         """Test that .org files are detected."""
         org_file = fixtures_dir / "test.org"
         files = [FileData(file=org_file, line_num=0, match_string="")]
@@ -368,7 +379,7 @@ class TestOrgRendering:
             assert is_org
 
     @pytest.mark.asyncio
-    async def test_org_rendering_enabled(self, fixtures_dir):
+    async def test_org_rendering_enabled(self, fixtures_dir: Path) -> None:
         """Test that org files are rendered when view mode is active."""
         org_file = fixtures_dir / "test.org"
         files = [FileData(file=org_file, line_num=0, match_string="")]
@@ -386,7 +397,7 @@ class TestOrgRendering:
             assert code_view is not None
 
     @pytest.mark.asyncio
-    async def test_org_rendering_disabled(self, fixtures_dir):
+    async def test_org_rendering_disabled(self, fixtures_dir: Path) -> None:
         """Test that org files show source when view mode is off."""
         org_file = fixtures_dir / "test.org"
         files = [FileData(file=org_file, line_num=0, match_string="")]
@@ -407,7 +418,9 @@ class TestSourceCodeRendering:
     """Test source code rendering (default mode)."""
 
     @pytest.mark.asyncio
-    async def test_python_file_syntax_highlighting(self, fixtures_dir):
+    async def test_python_file_syntax_highlighting(
+        self, fixtures_dir: Path
+    ) -> None:
         """Test that Python files are syntax highlighted."""
         py_file = fixtures_dir / "test.py"
         files = [FileData(file=py_file, line_num=0, match_string="")]
@@ -427,7 +440,7 @@ class TestSourceCodeRendering:
 class TestRenderedSearchHighlighting:
     """Rendered documents should highlight active search matches."""
 
-    def _render_to_text(self, renderable):
+    def _render_to_text(self, renderable: RenderableType) -> Text:
         from rich.console import Console
         from rich.text import Text
 
@@ -437,8 +450,9 @@ class TestRenderedSearchHighlighting:
             text.append(segment.text, segment.style)
         return text
 
-    def test_no_query_leaves_renderable_unchanged(self):
+    def test_no_query_leaves_renderable_unchanged(self) -> None:
         from rich.markdown import Markdown
+
         from prism.renderers import apply_search_highlight
 
         markdown = Markdown("hello world")
@@ -447,9 +461,10 @@ class TestRenderedSearchHighlighting:
         )
         assert result is markdown
 
-    def test_query_wraps_renderable(self):
+    def test_query_wraps_renderable(self) -> None:
         from rich.markdown import Markdown
-        from prism.renderers import apply_search_highlight, SearchHighlighter
+
+        from prism.renderers import SearchHighlighter, apply_search_highlight
 
         result = apply_search_highlight(
             Markdown("hello world"),
@@ -462,9 +477,10 @@ class TestRenderedSearchHighlighting:
         )
         assert isinstance(result, SearchHighlighter)
 
-    def test_matches_are_styled_in_rendered_output(self):
+    def test_matches_are_styled_in_rendered_output(self) -> None:
         from rich.console import Console
         from rich.markdown import Markdown
+
         from prism.renderers import apply_search_highlight
 
         result = apply_search_highlight(
@@ -484,8 +500,9 @@ class TestRenderedSearchHighlighting:
         resolved = text.get_style_at_offset(console, start)
         assert resolved.bgcolor is not None
 
-    def test_current_match_line_is_tracked(self):
+    def test_current_match_line_is_tracked(self) -> None:
         from rich.markdown import Markdown
+
         from prism.renderers import apply_search_highlight
 
         result = apply_search_highlight(
@@ -498,10 +515,13 @@ class TestRenderedSearchHighlighting:
             "bright_red",
         )
         self._render_to_text(result)
+        assert isinstance(result, SearchHighlighter)
         assert result.current_match_line is not None
 
     @pytest.mark.asyncio
-    async def test_rendered_markdown_attaches_highlighter(self, fixtures_dir):
+    async def test_rendered_markdown_attaches_highlighter(
+        self, fixtures_dir: Path
+    ) -> None:
         """Searching a rendered markdown file wraps it in a highlighter."""
         from prism.renderers import SearchHighlighter
 
@@ -519,4 +539,7 @@ class TestRenderedSearchHighlighting:
 
             code_view = app.query_one("#code", Static)
             assert app._search_matches
-            assert isinstance(code_view._search_highlighter, SearchHighlighter)
+            assert isinstance(
+                code_view._search_highlighter,  # ty: ignore[missing-attribute]
+                SearchHighlighter,
+            )
