@@ -176,7 +176,7 @@ class TestConfigOption:
 
     def test_invalid_config_exits_nonzero(self, config_home: Path) -> None:
         path = write_config(config_home, "not valid = [\n")
-        runner = CliRunner(mix_stderr=False)
+        runner = CliRunner()
         result = runner.invoke(prism, ["some-file"], env={"COLUMNS": "500"})
         assert result.exit_code == 1
         assert str(path) in result.stderr

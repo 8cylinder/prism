@@ -42,13 +42,13 @@ class _ArgumentSpec:
     nargs: int
 
 
-def _path_spec(path_type: click.Path) -> _ValueSpec:
+def _path_spec(path_type: click.Path[object]) -> _ValueSpec:
     if not path_type.file_okay:
         return _ValueSpec("dirs")
     return _ValueSpec("files")
 
 
-def _value_spec(param_type: click.ParamType) -> _ValueSpec:
+def _value_spec(param_type: click.ParamType[object]) -> _ValueSpec:
     if isinstance(param_type, click.Choice):
         return _ValueSpec(
             "choices", tuple(str(choice) for choice in param_type.choices)

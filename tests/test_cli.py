@@ -184,39 +184,33 @@ class TestCliBehavior:
     def test_debug_data_skips_directory(
         self, tmp_path: Path, xdg: Path
     ) -> None:
-        result = CliRunner(mix_stderr=False).invoke(
-            prism, ["--debug-data", str(tmp_path)]
-        )
+        result = CliRunner().invoke(prism, ["--debug-data", str(tmp_path)])
         assert result.exit_code == 0
         assert "Skipping directory" in result.stderr
 
     def test_broken_symlink_message(self, tmp_path: Path, xdg: Path) -> None:
         link = tmp_path / "broken"
         link.symlink_to(tmp_path / "missing")
-        result = CliRunner(mix_stderr=False).invoke(
-            prism, ["--debug-data", str(link)]
-        )
+        result = CliRunner().invoke(prism, ["--debug-data", str(link)])
         assert result.exit_code == 0
         assert "Skipping broken symlink" in result.stderr
 
     def test_missing_path_exit_code(self, tmp_path: Path, xdg: Path) -> None:
-        result = CliRunner(mix_stderr=False).invoke(
-            prism, [str(tmp_path / "missing.py")]
-        )
+        result = CliRunner().invoke(prism, [str(tmp_path / "missing.py")])
         assert result.exit_code == 2
         assert "does not exist" in result.stderr
 
     def test_invalid_line_number_exit_code(
         self, fixtures_dir: Path, xdg: Path
     ) -> None:
-        result = CliRunner(mix_stderr=False).invoke(
+        result = CliRunner().invoke(
             prism, [f"{fixtures_dir / 'test.py'}:abc:match"]
         )
         assert result.exit_code == 2
         assert "Invalid line number" in result.stderr
 
     def test_empty_input_error(self, xdg: Path) -> None:
-        result = CliRunner(mix_stderr=False).invoke(prism, [], input="")
+        result = CliRunner().invoke(prism, [], input="")
         assert result.exit_code == 1
         assert "No search results to show." in result.stderr
 
@@ -249,9 +243,7 @@ class TestCliBehavior:
         config = xdg / "config" / "prism" / "config.toml"
         config.parent.mkdir(parents=True)
         config.write_text("unknown = true\n")
-        result = CliRunner(mix_stderr=False).invoke(
-            prism, ["tests/fixtures/test.py"]
-        )
+        result = CliRunner().invoke(prism, ["tests/fixtures/test.py"])
         assert result.exit_code == 0
         assert "warning:" in result.stderr
         assert "unknown" in result.stderr
@@ -264,32 +256,24 @@ class TestCliBehavior:
         legacy.write_text(
             '[{"key": "x", "action": "quit", "description": "Quit"}]'
         )
-        result = CliRunner(mix_stderr=False).invoke(
-            prism, ["tests/fixtures/test.py"]
-        )
+        result = CliRunner().invoke(prism, ["tests/fixtures/test.py"])
         assert result.exit_code == 0
         assert "legacy shortcuts file" in result.stderr
 
 
 class TestColor:
     def test_always_emits_ansi(self, xdg: Path) -> None:
-        result = CliRunner(mix_stderr=False).invoke(
-            prism, ["--color", "always"], input=""
-        )
+        result = CliRunner().invoke(prism, ["--color", "always"], input="")
         assert result.exit_code == 1
         assert "\x1b[" in result.stderr
 
     def test_never_emits_no_ansi(self, xdg: Path) -> None:
-        result = CliRunner(mix_stderr=False).invoke(
-            prism, ["--color", "never"], input=""
-        )
+        result = CliRunner().invoke(prism, ["--color", "never"], input="")
         assert result.exit_code == 1
         assert "\x1b[" not in result.stderr
 
     def test_auto_emits_no_ansi_when_captured(self, xdg: Path) -> None:
-        result = CliRunner(mix_stderr=False).invoke(
-            prism, ["--color", "auto"], input=""
-        )
+        result = CliRunner().invoke(prism, ["--color", "auto"], input="")
         assert result.exit_code == 1
         assert "\x1b[" not in result.stderr
 
@@ -338,9 +322,7 @@ class TestColor:
     ) -> None:
         directory = tmp_path / "[red]not markup"
         directory.mkdir()
-        result = CliRunner(mix_stderr=False).invoke(
-            prism, ["--debug-data", str(directory)]
-        )
+        result = CliRunner().invoke(prism, ["--debug-data", str(directory)])
         assert result.exit_code == 0
         assert "[red]not markup" in result.stderr
         assert "\x1b[31m" not in result.stderr
@@ -349,7 +331,7 @@ class TestColor:
 class TestCompletionsOption:
     def test_completions_writes_file(self, tmp_path: Path, xdg: Path) -> None:
         destination = tmp_path / "completions"
-        result = CliRunner(mix_stderr=False).invoke(
+        result = CliRunner().invoke(
             prism,
             ["--completions"],
             env={"BASH_COMPLETION_USER_DIR": str(destination)},
